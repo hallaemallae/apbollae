@@ -5,7 +5,7 @@ import React, { createContext, useCallback, useContext, useMemo, useRef, useStat
 
 const DEFAULTS = {
   source: "sim", // sim: 시뮬레이션 주행 | device: 실제 위치(RN GPS 또는 브라우저)
-  data: "mock", // mock: 목업 CCTV·돌발 | live: 실제 ITS(로컬 프록시 경유, 월 호출 한도 차감)
+  data: "live", // live: 실제 ITS(로컬 프록시 경유, 월 호출 한도 차감) | mock: 목업 CCTV·돌발
   speed: "normal", // simulator.SPEED_PRESETS 키
   tunnel: false, // E3 신호 끊김
   apiDown: false, // E6 ITS 장애
