@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled, { useTheme } from "styled-components";
-import { FiInfo, FiNavigation, FiVideoOff, FiCloudOff } from "react-icons/fi";
+import { FiInfo, FiNavigation, FiVideoOff, FiCloudOff, FiFlag, FiX } from "react-icons/fi";
 import CctvPlayer from "../components/drive/CctvPlayer";
 import GuideSign from "../components/drive/GuideSign";
 import CctvStrip from "../components/drive/CctvStrip";
@@ -10,6 +10,8 @@ import KakaoMiniMap from "../components/drive/KakaoMiniMap";
 import EmptyState from "../components/common/EmptyState";
 import useLocationStream from "../hooks/useLocationStream";
 import useAheadCctvs from "../hooks/useAheadCctvs";
+import useRoute from "../hooks/useRoute";
+import DestinationSheet from "../components/drive/DestinationSheet";
 import { useFlow } from "../context/FlowContext";
 import { useScenario } from "../context/ScenarioContext";
 import { ROUTE_ROAD } from "../mock/route";
@@ -66,6 +68,51 @@ const IconBtn = styled.button`
   color: ${({ theme }) => theme.colors.textNormal};
 `;
 
+const DestRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 12px 16px 0;
+  border-radius: ${({ theme }) => theme.radius.md}px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  > button:first-child {
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  > button:first-child svg {
+    flex-shrink: 0;
+    color: ${({ theme }) => theme.colors.lane};
+  }
+  small {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.textWeak};
+  }
+  > button + button {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border: none;
+    background: transparent;
+    color: ${({ theme }) => theme.colors.textWeak};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+`;
+
 const Tabs = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -116,14 +163,17 @@ const Refresh = styled.p`
 export default function DrivePage() {
   const navigate = useNavigate();
   const theme = useTheme();
-  const { dataNoticeSeen, setDataNoticeSeen } = useFlow();
+  const { dataNoticeSeen, setDataNoticeSeen, setDestination } = useFlow();
   const { scenario, reportFlow } = useScenario();
 
   const loc = useLocationStream(true);
   // 시뮬레이션은 도로를 안다. 실제 GPS 는 표준노드링크 매칭 전까지 도로를 모른다(2차 도로 필터 생략).
   const road = scenario.source === "sim" ? ROUTE_ROAD : null;
   const direction = travelDirection(loc.heading, road);
-  const ahead = useAheadCctvs({ fix: loc.fix, heading: loc.heading, road });
+  const nav = useRoute(loc.fix, loc.heading);
+  const ahead = useAheadCctvs({ fix: loc.fix, heading: loc.heading, road, nav });
+  const routeMode = ahead.mode === "route";
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const [view, setView] = useState("list");
   const [activeId, setActiveId] = useState(null);
@@ -132,8 +182,13 @@ export default function DrivePage() {
   const [justRefreshed, setJustRefreshed] = useState(false);
 
   const items = useMemo(
-    () => ahead.selected.map((c) => ({ ...c, liveKm: loc.fix ? distanceKm(loc.fix, c) : c.km })),
-    [ahead.selected, loc.fix]
+    () =>
+      ahead.selected.map((c) => ({
+        ...c,
+        // 경로 모드는 경로를 따라 남은 거리, 그 밖은 직선거리
+        liveKm: routeMode && c.s != null ? Math.max(0.01, c.s - nav.s0) : loc.fix ? distanceKm(loc.fix, c) : c.km,
+      })),
+    [ahead.selected, loc.fix, routeMode, nav.s0]
   );
 
   // 재선별되면 재생 중인 CCTV 가 목록에 남아 있는지 보고, 없으면 영상이 나오는 가장 가까운 것으로
@@ -235,6 +290,7 @@ export default function DrivePage() {
         activeId={activeId}
         onSelect={select}
         recenterKey={ahead.refreshedAt}
+        routeRoads={nav.route?.roads}
         theme={theme}
       />
     );
@@ -251,9 +307,21 @@ export default function DrivePage() {
       />
     );
   }
+  const sheet = sheetOpen ? (
+    <DestinationSheet
+      near={loc.fix}
+      data={scenario.data}
+      onClose={() => setSheetOpen(false)}
+      onPick={(d) => {
+        setDestination(d);
+        setSheetOpen(false);
+      }}
+    />
+  ) : null;
 
   return (
     <Page>
+      {sheet}
       <Sticky>
         <Bar>
           <Word>
@@ -270,8 +338,40 @@ export default function DrivePage() {
           blocked={activeEvents.some((e) => e.type === "accident")}
           onError={handleError}
         />
-        <GuideSign road={road} direction={direction} heading={loc.heading} headingSource={loc.headingSource} speed={loc.signalLost ? null : loc.fix?.speed} />
+        <GuideSign road={road} direction={direction} heading={loc.heading} headingSource={loc.headingSource} speed={loc.signalLost ? null : loc.fix?.speed} nav={nav} />
       </Sticky>
+
+      {!noHeading ? (
+        <DestRow>
+          <button type="button" onClick={() => setSheetOpen(true)}>
+            <FiFlag size={20} aria-hidden="true" />
+            <span>
+              {nav.destination ? (
+                <>
+                  {nav.destination.name}
+                  <small>
+                    {nav.status === "loading"
+                      ? "경로 찾는 중"
+                      : nav.status === "error"
+                        ? "경로를 찾지 못해 진행 방향 기준으로 골라요 · 눌러서 바꾸기"
+                        : `남은 거리 ${nav.remainingKm != null ? nav.remainingKm.toFixed(1) : "-"}km · 경로 위 CCTV만 골라요`}
+                  </small>
+                </>
+              ) : (
+                <>
+                  목적지 넣기
+                  <small>경로 위 CCTV만 더 정확하게 골라요 (선택)</small>
+                </>
+              )}
+            </span>
+          </button>
+          {nav.destination ? (
+            <button type="button" aria-label="목적지 지우기" onClick={() => setDestination(null)}>
+              <FiX size={20} />
+            </button>
+          ) : null}
+        </DestRow>
+      ) : null}
 
       {nearby && !noHeading ? (
         <Warn role="status">
@@ -302,7 +402,7 @@ export default function DrivePage() {
 
       {!noHeading && ahead.secondsLeft != null ? (
         <Refresh>
-          {ahead.secondsLeft}초 뒤 또는 {ahead.metersLeft}m 더 가면 {nearby ? "주변" : "앞쪽"} CCTV를 다시 찾아요.
+          {ahead.secondsLeft}초 뒤 또는 {ahead.metersLeft}m 더 가면 {nearby ? "주변" : routeMode ? "경로 앞" : "앞쪽"} CCTV를 다시 찾아요.
         </Refresh>
       ) : null}
     </Page>

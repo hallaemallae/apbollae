@@ -5,6 +5,7 @@ import React from "react";
 import styled, { css } from "styled-components";
 import { formatDistance } from "../../utils/aheadFilter";
 import { EVENT_LABEL } from "../../mock/events";
+import { TRAFFIC_LABEL } from "../../utils/routeFilter";
 
 const RAIL_X = 22; // 도로 선의 가로 위치
 
@@ -149,6 +150,22 @@ const Badge = styled.span`
   }
 `;
 
+const Traffic = styled.span`
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textNormal};
+  i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: ${({ theme, $state }) => theme.colors.traffic[$state] || theme.colors.traffic.unknown};
+  }
+`;
+
 export function EventBadge({ ev, nearby = false }) {
   const d = formatDistance(ev.km);
   return (
@@ -188,6 +205,12 @@ export default function CctvStrip({ hereLabel, items, activeId, failedIds, event
                 <Name $dead={dead}>{c.name}</Name>
                 {active && !dead ? <State $tone="live">재생 중</State> : null}
                 {dead ? <State>영상 없음 · 눌러서 다시 시도</State> : null}
+                {c.traffic && c.traffic.state !== "unknown" ? (
+                  <Traffic $state={c.traffic.state}>
+                    <i aria-hidden="true" />이 구간 {TRAFFIC_LABEL[c.traffic.state]}
+                    {c.traffic.speed != null ? ` · ${c.traffic.speed}km/h` : ""}
+                  </Traffic>
+                ) : null}
                 {events.map((ev) => (
                   <EventBadge key={ev.id} ev={ev} nearby={nearby} />
                 ))}

@@ -41,6 +41,8 @@ const signal = {
   accident: "#E5483B",
   work: "#F08A24",
   control: "#3D7BE0",
+  // 경로 소통 상태(카카오 길찾기) — 색과 함께 항상 글자(원활·서행·지체·정체)로도 표시한다
+  traffic: { smooth: "#2E9E5B", slow: "#C9A100", delay: "#E57C23", jam: "#D33A2C", blocked: "#8E44AD", unknown: "#6B7378" },
 };
 
 export const darkTheme = {

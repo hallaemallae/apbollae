@@ -9,11 +9,13 @@ export function FlowProvider({ children }) {
   const [passenger, setPassenger] = useState(false);
   const [permission, setPermission] = useState("unknown"); // unknown | granted | denied
   const [dataNoticeSeen, setDataNoticeSeen] = useState(false);
+  const [destination, setDestination] = useState(null); // { name, address, lat, lng } — 선택 기능
 
   const resetDrive = useCallback(() => {
     setPassenger(false);
     setPermission("unknown");
     setDataNoticeSeen(false);
+    setDestination(null);
   }, []);
 
   const value = useMemo(
@@ -24,9 +26,11 @@ export function FlowProvider({ children }) {
       setPermission,
       dataNoticeSeen,
       setDataNoticeSeen,
+      destination,
+      setDestination,
       resetDrive,
     }),
-    [passenger, permission, dataNoticeSeen, resetDrive]
+    [passenger, permission, dataNoticeSeen, destination, resetDrive]
   );
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;

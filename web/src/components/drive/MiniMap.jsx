@@ -65,7 +65,7 @@ function sectorPath() {
 
 const EVENT_COLOR = { accident: "#E5483B", work: "#F08A24", control: "#3D7BE0" };
 
-export default function MiniMap({ position, heading, route, all, selected, events, theme }) {
+export default function MiniMap({ position, heading, route, routeRoads, all, selected, events, theme }) {
   const rank = useMemo(() => Object.fromEntries(selected.map((c, i) => [c.id, i + 1])), [selected]);
 
   if (!position) return null;
@@ -84,7 +84,7 @@ export default function MiniMap({ position, heading, route, all, selected, event
           </clipPath>
         </defs>
         <g clipPath="url(#mm-clip)">
-          {heading != null ? (
+          {routeRoads?.length ? null : heading != null ? (
             <path d={sectorPath()} fill={c.lane} opacity="0.1" stroke={c.lane} strokeOpacity="0.5" strokeDasharray="4 5" />
           ) : (
             <circle cx={ME.x} cy={ME.y} r={AHEAD.maxKm * 1000 * SCALE} fill={c.lane} opacity="0.08" stroke={c.lane} strokeDasharray="4 5" />
@@ -98,7 +98,19 @@ export default function MiniMap({ position, heading, route, all, selected, event
           <text x={ME.x + 6} y={ME.y - 3000 * SCALE + 14} fontSize="11" fill={c.textWeak}>
             3km
           </text>
-          {route.length ? <polyline points={routePts} fill="none" stroke={c.road} strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /> : null}
+          {route.length && !routeRoads?.length ? <polyline points={routePts} fill="none" stroke={c.road} strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /> : null}
+          {(routeRoads || []).map((r, i) => (
+            <polyline
+              key={i}
+              points={r.coords.map(([lat, lng]) => { const q = P({ lat, lng }); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(" ")}
+              fill="none"
+              stroke={c.traffic[r.state] || c.traffic.unknown}
+              strokeWidth="7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.9"
+            />
+          ))}
 
           {all.map((cc) => {
             if (rank[cc.id]) return null;

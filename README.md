@@ -32,6 +32,11 @@ npm run proxy     # 터미널 2 — 실제 ITS 데이터를 쓸 때만. server/.
   - 개발할 때는 `server/dev-proxy.cjs`를 내 PC에서 돌립니다. **ITS가 Google Cloud IP를 막아서** Cloud Functions(`server/functions/index.js`)에서는 ITS를 부를 수 없습니다(2026-10-03 확인).
   - 운영 서버는 국내 IP 환경에서 `itsCore.js`를 감싸서 띄워야 합니다. 아직 정하지 않았습니다.
   - 로컬 사용량은 `server/.its-usage.json`에 셉니다. ITS 마이페이지 사용량도 함께 확인하세요.
+- **목적지·경로(선택 기능)**는 카카오 로컬 장소 검색과 카카오모빌리티 자동차 길찾기를 씁니다(`server/functions/kakaoCore.js`).
+  - 키는 `server/.env`의 `KAKAO_REST_KEY`이고, 로컬 프록시를 거칩니다.
+  - 비상업 용도는 하루 10,000건까지 무료입니다.
+  - 목적지를 넣으면 경로 위 CCTV만 경로 거리순으로 고르고, 앞쪽 정체 구간을 보여 줍니다. 목적지가 없으면 부채꼴(±30°) 방식으로 고릅니다.
+- **카카오 지도**는 `web/.env.local`의 `VITE_KAKAO_JS_KEY`를 씁니다. 키가 없으면 간이 지도로 대신 그립니다.
 - **ITS 인증키**는 다음 두 곳에만 있습니다.
   - `server/.env`: 커밋하지 않습니다.
   - Firebase 시크릿 `ITS_API_KEY`

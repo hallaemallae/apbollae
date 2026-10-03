@@ -3,8 +3,10 @@
 //
 //   실행: cd web && npm run proxy        (= node --env-file=../server/.env ../server/dev-proxy.cjs)
 //   주소: http://localhost:8787/api/its/around?lat=&lng=   (웹앱 개발 서버가 /api 를 여기로 넘긴다)
+//         http://localhost:8787/api/place?query=&lat=&lng=   카카오 장소 검색(목적지)
+//         http://localhost:8787/api/route?olat=&olng=&dlat=&dlng=&heading=   카카오모빌리티 자동차 길찾기
 //
-// - 인증키는 server/.env 에서만 읽는다(커밋 안 됨).
+// - 인증키는 server/.env 에서만 읽는다(커밋 안 됨). ITS_API_KEY(필수), KAKAO_REST_KEY(목적지·경로 기능용, 없으면 그 기능만 503)
 // - 캐시는 메모리(CCTV 30분·돌발 60초). 재시작하면 비워진다.
 // - 월 호출 수는 server/.its-usage.json 에 센다(커밋 안 됨). 한도(기본 900)에 닿으면 캐시만 돌려준다.
 //   ※ 다른 사람·다른 PC 의 호출은 여기 안 잡힌다 — ITS 마이페이지 사용량도 가끔 확인할 것.
@@ -12,6 +14,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const { inKorea, createLoaders, createAround } = require("./functions/itsCore");
+const { searchPlaces, getRoute } = require("./functions/kakaoCore");
 
 const PORT = Number(process.env.PROXY_PORT || 8787);
 const LIMIT = Number(process.env.ITS_MONTHLY_LIMIT || 900);
@@ -56,7 +59,34 @@ http
       res.end(JSON.stringify(body));
     };
 
-    if (req.method !== "GET" || !/\/its\/around\/?$/.test(url.pathname)) return send(404, { error: "not_found" });
+    if (req.method !== "GET") return send(404, { error: "not_found" });
+
+    // 목적지 검색·경로 — 카카오 REST 키가 있을 때만
+    if (/\/(place|route)\/?$/.test(url.pathname)) {
+      const key = process.env.KAKAO_REST_KEY;
+      if (!key) return send(503, { error: "no_kakao_key" });
+      const n = (k) => Number(url.searchParams.get(k));
+      try {
+        if (url.pathname.endsWith("/place") || url.pathname.endsWith("/place/")) {
+          const query = (url.searchParams.get("query") || "").trim();
+          if (!query) return send(400, { error: "no_query" });
+          const places = await searchPlaces(key, { query, lat: n("lat"), lng: n("lng") });
+          console.log(`[place] "${query}" → ${places.length}건`);
+          return send(200, { places });
+        }
+        const origin = { lat: n("olat"), lng: n("olng") };
+        const destination = { lat: n("dlat"), lng: n("dlng") };
+        if (!inKorea(origin.lat, origin.lng) || !inKorea(destination.lat, destination.lng)) return send(400, { error: "bad_position" });
+        const route = await getRoute(key, { origin, destination, heading: n("heading") });
+        console.log(`[route] ${(route.distance / 1000).toFixed(1)}km · 도로 ${route.roads.length}구간`);
+        return send(200, route);
+      } catch (err) {
+        console.error("[kakao]", err.message);
+        return send(err.message.startsWith("NO_ROUTE") ? 404 : 502, { error: err.message.startsWith("NO_ROUTE") ? "no_route" : "kakao_failed" });
+      }
+    }
+
+    if (!/\/its\/around\/?$/.test(url.pathname)) return send(404, { error: "not_found" });
     const lat = Number(url.searchParams.get("lat"));
     const lng = Number(url.searchParams.get("lng"));
     if (!inKorea(lat, lng)) return send(400, { error: "bad_position" });
@@ -72,4 +102,5 @@ http
   .listen(PORT, () => {
     const used = readUsage()[monthKey()] || 0;
     console.log(`앞볼래 로컬 프록시: http://localhost:${PORT}/api/its/around  (이번 달 ITS 호출 ${used}/${LIMIT})`);
+    console.log(`  목적지·경로(카카오): ${process.env.KAKAO_REST_KEY ? "켜짐" : "꺼짐 — server/.env 에 KAKAO_REST_KEY 없음"}`);
   });

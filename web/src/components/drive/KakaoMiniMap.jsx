@@ -62,7 +62,7 @@ function offset(p, bearing, km) {
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 export default function KakaoMiniMap(props) {
-  const { position, heading, all, selected, events, activeId, onSelect, theme, recenterKey } = props;
+  const { position, heading, all, selected, events, activeId, onSelect, theme, recenterKey, routeRoads } = props;
   const boxRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef([]); // 다시 그릴 때 지울 오버레이들
@@ -124,8 +124,24 @@ export default function KakaoMiniMap(props) {
       layer.push(o);
     };
 
-    // 전방 부채꼴(방향을 알 때) / 반경 원(모를 때)
-    if (heading != null) {
+    // 목적지 경로 — 구간마다 소통 색
+    if (routeRoads?.length) {
+      routeRoads.forEach((r) => {
+        const line = new kakao.maps.Polyline({
+          path: r.coords.map(([lat, lng]) => new kakao.maps.LatLng(lat, lng)),
+          strokeWeight: 7,
+          strokeColor: theme.colors.traffic[r.state] || theme.colors.traffic.unknown,
+          strokeOpacity: 0.9,
+        });
+        line.setMap(map);
+        layer.push(line);
+      });
+    }
+
+    // 전방 부채꼴(방향을 알 때, 경로가 없을 때) / 반경 원(방향을 모를 때)
+    if (routeRoads?.length) {
+      // 경로가 있으면 부채꼴 대신 경로 선이 "앞"을 보여 준다
+    } else if (heading != null) {
       const path = [LL(position)];
       for (let a = -AHEAD.halfAngle; a <= AHEAD.halfAngle; a += 5) path.push(LL(offset(position, heading + a, AHEAD.maxKm)));
       const poly = new kakao.maps.Polygon({ path, strokeWeight: 2, strokeColor: theme.colors.lane, strokeOpacity: 0.8, strokeStyle: "dash", fillColor: theme.colors.lane, fillOpacity: 0.15 });
@@ -183,7 +199,7 @@ export default function KakaoMiniMap(props) {
     );
 
     layerRef.current = layer;
-  }, [state, position, heading, all, selected, events, activeId, rank, onSelect, theme]);
+  }, [state, position, heading, all, selected, events, activeId, rank, onSelect, theme, routeRoads]);
 
   if (state === "fallback") {
     return (
