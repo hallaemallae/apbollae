@@ -14,6 +14,7 @@ export const AHEAD = {
   maxKm: 5,
   limit: 5,
   refreshMs: 30_000,
+  attachKm: 2, // 돌발은 이 거리 안의 CCTV 카드에만 붙인다(먼 CCTV 화면으로는 확인할 수 없다)
   refreshKm: 0.5,
 };
 
@@ -56,7 +57,8 @@ export function directionFromName(name = "") {
  */
 function classify(target, ctx, opts, nameDirection) {
   const km = distanceKm(ctx.position, target);
-  const diff = angleDiff(bearingDeg(ctx.position, target), ctx.heading);
+  // 진행 방향을 모르면(정차 직후·PC 브라우저) 부채꼴 판정 없이 반경만 본다 — "주변" 모드
+  const diff = ctx.heading == null ? 0 : angleDiff(bearingDeg(ctx.position, target), ctx.heading);
   let status = "ahead";
   if (Math.abs(diff) > opts.halfAngle) status = "behind";
   else if (km > opts.maxKm) status = "far";
@@ -67,7 +69,7 @@ function classify(target, ctx, opts, nameDirection) {
 
 /**
  * @param {Array} cctvs  [{ id, name, lat, lng, roadName? }]
- * @param {{ position:{lat,lng}, heading:number, roadNames?:string[], direction?:"up"|"down" }} ctx  roadNames: 지금 도로의 표기들(경부고속도로·경부선)
+ * @param {{ position:{lat,lng}, heading:number|null, roadNames?:string[], direction?:"up"|"down" }} ctx  roadNames: 지금 도로의 표기들(경부고속도로·경부선)
  * @returns {{ selected: Array, all: Array }}  selected 는 가까운 순 최대 limit 개
  */
 export function selectAhead(cctvs, ctx, opts = AHEAD) {
@@ -99,6 +101,7 @@ export function attachEvents(events, selected, ctx, opts = AHEAD) {
         nearest = c;
       }
     });
+    if (best > (opts.attachKm ?? 2)) return;
     (byCctv[nearest.id] ||= []).push({ ...ev, km });
   });
   return byCctv;

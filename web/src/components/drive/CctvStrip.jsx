@@ -149,12 +149,12 @@ const Badge = styled.span`
   }
 `;
 
-export function EventBadge({ ev }) {
+export function EventBadge({ ev, nearby = false }) {
   const d = formatDistance(ev.km);
   return (
     <Badge $type={ev.type}>
       {d.value}
-      {d.unit} 앞 {ev.label || EVENT_LABEL[ev.type]}
+      {d.unit} {nearby ? "거리" : "앞"} {ev.label || EVENT_LABEL[ev.type]}
       {ev.lanes ? `, ${ev.lanes}` : ""}
       {ev.message ? <em>{ev.message}</em> : null}
     </Badge>
@@ -164,9 +164,9 @@ export function EventBadge({ ev }) {
 /**
  * @param {Array} items  [{ id, name, liveKm }]  가까운 순
  */
-export default function CctvStrip({ hereLabel, items, activeId, failedIds, eventsByCctv, onSelect }) {
+export default function CctvStrip({ hereLabel, items, activeId, failedIds, eventsByCctv, onSelect, nearby = false }) {
   return (
-    <List aria-label="내 앞 CCTV, 가까운 순">
+    <List aria-label={nearby ? "주변 CCTV, 가까운 순" : "내 앞 CCTV, 가까운 순"}>
       <Here>
         <HereMark aria-hidden="true" />
         현재 위치{hereLabel ? `, ${hereLabel} 부근` : ""}
@@ -189,7 +189,7 @@ export default function CctvStrip({ hereLabel, items, activeId, failedIds, event
                 {active && !dead ? <State $tone="live">재생 중</State> : null}
                 {dead ? <State>영상 없음 · 눌러서 다시 시도</State> : null}
                 {events.map((ev) => (
-                  <EventBadge key={ev.id} ev={ev} />
+                  <EventBadge key={ev.id} ev={ev} nearby={nearby} />
                 ))}
               </Body>
             </Stop>

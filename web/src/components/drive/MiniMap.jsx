@@ -68,8 +68,9 @@ const EVENT_COLOR = { accident: "#E5483B", work: "#F08A24", control: "#3D7BE0" }
 export default function MiniMap({ position, heading, route, all, selected, events, theme }) {
   const rank = useMemo(() => Object.fromEntries(selected.map((c, i) => [c.id, i + 1])), [selected]);
 
-  if (!position || heading == null) return null;
-  const P = (p) => project(position, heading, p);
+  if (!position) return null;
+  // 방향을 모르면 북쪽이 위인 지도로, 부채꼴 대신 반경 원을 그린다
+  const P = (p) => project(position, heading ?? 0, p);
   const routePts = route.map((n) => P(n)).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const c = theme.colors;
   const r5 = AHEAD.maxKm * 1000 * SCALE;
@@ -83,7 +84,11 @@ export default function MiniMap({ position, heading, route, all, selected, event
           </clipPath>
         </defs>
         <g clipPath="url(#mm-clip)">
-          <path d={sectorPath()} fill={c.lane} opacity="0.1" stroke={c.lane} strokeOpacity="0.5" strokeDasharray="4 5" />
+          {heading != null ? (
+            <path d={sectorPath()} fill={c.lane} opacity="0.1" stroke={c.lane} strokeOpacity="0.5" strokeDasharray="4 5" />
+          ) : (
+            <circle cx={ME.x} cy={ME.y} r={AHEAD.maxKm * 1000 * SCALE} fill={c.lane} opacity="0.08" stroke={c.lane} strokeDasharray="4 5" />
+          )}
           {[1, 3].map((km) => (
             <circle key={km} cx={ME.x} cy={ME.y} r={km * 1000 * SCALE} fill="none" stroke={c.border} strokeDasharray="2 6" />
           ))}

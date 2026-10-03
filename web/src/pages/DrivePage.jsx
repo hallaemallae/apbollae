@@ -6,7 +6,7 @@ import { FiInfo, FiNavigation, FiVideoOff, FiCloudOff } from "react-icons/fi";
 import CctvPlayer from "../components/drive/CctvPlayer";
 import GuideSign from "../components/drive/GuideSign";
 import CctvStrip from "../components/drive/CctvStrip";
-import MiniMap from "../components/drive/MiniMap";
+import KakaoMiniMap from "../components/drive/KakaoMiniMap";
 import EmptyState from "../components/common/EmptyState";
 import useLocationStream from "../hooks/useLocationStream";
 import useAheadCctvs from "../hooks/useAheadCctvs";
@@ -191,13 +191,14 @@ export default function DrivePage() {
 
   const activeEvents = (active && ahead.eventsByCctv[active.id]) || [];
   const hasEvents = Object.keys(ahead.eventsByCctv).length > 0;
-  const noHeading = !loc.fix || loc.heading == null;
+  const noHeading = !loc.fix; // 위치 자체가 아직 없음(흐름 4단계)
+  const nearby = ahead.mode === "nearby";
   const empty = !noHeading && !ahead.loading && !ahead.error && items.length === 0;
 
   // 기능흐름도 단계 보고(개발 패널 표시용)
   useEffect(() => {
     const ex = [];
-    if (loc.headingSource === "trail" || loc.headingSource === "hold") ex.push("E3");
+    if (loc.headingSource === "trail" || loc.headingSource === "hold" || (loc.fix && loc.heading == null)) ex.push("E3");
     if (empty) ex.push("E4");
     if (items.some((c) => failedIds.has(c.id))) ex.push("E5");
     if (ahead.stale || ahead.error) ex.push("E6");
@@ -209,7 +210,7 @@ export default function DrivePage() {
 
   let body;
   if (noHeading) {
-    body = <EmptyState icon={<FiNavigation />} text="위치와 진행 방향을 확인하고 있어요" sub="조금 움직이면 방향이 잡혀요." />;
+    body = <EmptyState icon={<FiNavigation />} text="내 위치를 확인하고 있어요" sub="위치가 잡히면 가까운 CCTV를 바로 보여 드려요." />;
   } else if (ahead.error) {
     // 개발 중에는 원인을 바로 알 수 있게 — 로컬 프록시가 꺼져 있는 경우가 대부분이다
     const devHint = import.meta.env.DEV && scenario.data === "live" ? "\n로컬 프록시(web 폴더에서 npm run proxy)가 켜져 있는지 확인해 주세요." : "";
@@ -218,19 +219,22 @@ export default function DrivePage() {
     body = (
       <EmptyState
         icon={<FiVideoOff />}
-        text="앞쪽 5km 안에 CCTV가 없어요"
+        text={nearby ? "주변 5km 안에 CCTV가 없어요" : "앞쪽 5km 안에 CCTV가 없어요"}
         sub={`조금 더 가면 다시 찾아볼게요.\n${ahead.secondsLeft ?? 30}초 뒤 또는 ${ahead.metersLeft ?? 500}m 이동 후`}
       />
     );
   } else if (view === "map") {
     body = (
-      <MiniMap
+      <KakaoMiniMap
         position={loc.fix}
         heading={loc.heading}
         route={scenario.source === "sim" ? routeNodes : []}
         all={ahead.all}
         selected={ahead.selected}
         events={ahead.events}
+        activeId={activeId}
+        onSelect={select}
+        recenterKey={ahead.refreshedAt}
         theme={theme}
       />
     );
@@ -243,6 +247,7 @@ export default function DrivePage() {
         failedIds={failedIds}
         eventsByCctv={ahead.eventsByCctv}
         onSelect={select}
+        nearby={nearby}
       />
     );
   }
@@ -268,6 +273,13 @@ export default function DrivePage() {
         <GuideSign road={road} direction={direction} heading={loc.heading} headingSource={loc.headingSource} speed={loc.signalLost ? null : loc.fix?.speed} />
       </Sticky>
 
+      {nearby && !noHeading ? (
+        <Warn role="status">
+          <FiNavigation size={18} />
+          아직 진행 방향을 몰라 주변 CCTV를 가까운 순으로 보여 드려요. 차가 움직이면 앞쪽 CCTV만 골라요.
+        </Warn>
+      ) : null}
+
       {ahead.stale ? (
         <Warn role="status">
           <FiCloudOff size={18} />
@@ -290,7 +302,7 @@ export default function DrivePage() {
 
       {!noHeading && ahead.secondsLeft != null ? (
         <Refresh>
-          {ahead.secondsLeft}초 뒤 또는 {ahead.metersLeft}m 더 가면 앞쪽 CCTV를 다시 찾아요.
+          {ahead.secondsLeft}초 뒤 또는 {ahead.metersLeft}m 더 가면 {nearby ? "주변" : "앞쪽"} CCTV를 다시 찾아요.
         </Refresh>
       ) : null}
     </Page>

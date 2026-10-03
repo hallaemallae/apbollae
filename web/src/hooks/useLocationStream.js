@@ -65,7 +65,15 @@ export default function useLocationStream(active) {
           () => {},
           { enableHighAccuracy: true, maximumAge: 0 }
         );
-        cleanupSource = () => navigator.geolocation.clearWatch(id);
+        // 브라우저는 움직이지 않으면 새 위치를 거의 안 준다 — 마지막 값을 1초마다 다시 넣어 '신호 끊김'으로 오인하지 않게
+        const keep = setInterval(() => {
+          const last = trailRef.current[trailRef.current.length - 1];
+          if (last && Date.now() - last.t > 1500) push({ ...last, t: Date.now() });
+        }, 1000);
+        cleanupSource = () => {
+          navigator.geolocation.clearWatch(id);
+          clearInterval(keep);
+        };
       }
     }
 
