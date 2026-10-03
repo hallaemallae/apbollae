@@ -16,8 +16,16 @@ export default function useAheadCctvs({ fix, heading, road }) {
   const { scenario } = useScenario();
   const [state, setState] = useState(EMPTY);
   const busyRef = useRef(false);
+  const genRef = useRef(0); // 데이터 출처가 바뀐 뒤 도착한 이전 응답은 버린다
 
   const ready = fix && heading != null;
+
+  // 목업 ↔ 실제 데이터를 바꾸면 다음 틱에 곧바로 다시 받는다
+  useEffect(() => {
+    genRef.current += 1;
+    busyRef.current = false;
+    setState(EMPTY);
+  }, [scenario.data]);
 
   useEffect(() => {
     if (!ready || busyRef.current) return;
@@ -26,11 +34,13 @@ export default function useAheadCctvs({ fix, heading, road }) {
     if (state.refreshedAt && elapsed < AHEAD.refreshMs && moved < AHEAD.refreshKm) return;
 
     busyRef.current = true;
+    const gen = genRef.current;
     const position = { lat: fix.lat, lng: fix.lng };
-    const ctx = { position, heading, roadName: road?.name, direction: travelDirection(heading, road) };
+    const ctx = { position, heading, roadNames: road?.names, direction: travelDirection(heading, road) };
 
-    fetchAround(position, { apiDown: scenario.apiDown })
+    fetchAround(position, { apiDown: scenario.apiDown, data: scenario.data })
       .then((res) => {
+        if (gen !== genRef.current) return;
         const { selected, all } = selectAhead(res.cctvs, ctx);
         setState({
           selected,
@@ -44,13 +54,14 @@ export default function useAheadCctvs({ fix, heading, road }) {
         });
       })
       .catch((e) => {
+        if (gen !== genRef.current) return;
         // 캐시조차 없는 장애 — 목록은 비우고 다음 주기에 다시 시도
         setState({ ...EMPTY, refreshedAt: Date.now(), refreshedPos: position, error: e.message });
       })
       .finally(() => {
-        busyRef.current = false;
+        if (gen === genRef.current) busyRef.current = false;
       });
-  }, [ready, fix, heading, road, scenario.apiDown, state.refreshedAt, state.refreshedPos]);
+  }, [ready, fix, heading, road, scenario.apiDown, scenario.data, state.refreshedAt, state.refreshedPos]);
 
   const secondsLeft = state.refreshedAt ? Math.max(0, Math.ceil((AHEAD.refreshMs - (Date.now() - state.refreshedAt)) / 1000)) : null;
   const metersLeft =

@@ -6,3 +6,9 @@ dist/
 .env.*
 !.env.example
 .secret.local
+
+# Functions 비밀 아닌 설정은 커밋한다
+!server/functions/.env.apbollae
+
+# 로컬 프록시 ITS 사용량 기록
+server/.its-usage.json

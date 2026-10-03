@@ -19,12 +19,30 @@ let lastGood = null; // E6: 장애 시 보여 줄 직전 목록(서버 60초 캐
 const inBox = (p, c) => Math.abs(p.lat - c.lat) <= RADIUS_DEG && Math.abs(p.lng - c.lng) <= RADIUS_DEG;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+let lastLive = null; // 실제 데이터 모드에서 서버에 못 닿을 때 보여 줄 직전 응답
+
+/** 실제 ITS — 같은 출처의 /api 로 부른다(개발: vite → 로컬 프록시, 운영: 프록시 서버) */
+async function fetchLive(position) {
+  const q = `lat=${position.lat.toFixed(5)}&lng=${position.lng.toFixed(5)}`;
+  try {
+    const res = await fetch(`/api/its/around?${q}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    lastLive = data;
+    return data;
+  } catch (err) {
+    if (lastLive) return { ...lastLive, stale: true };
+    throw err;
+  }
+}
+
 /**
  * @param {{lat:number,lng:number}} position
- * @param {{ apiDown?: boolean }} scenario
+ * @param {{ apiDown?: boolean, data?: "mock"|"live" }} scenario
  * @returns {Promise<{ cctvs:Array, events:Array, at:number, stale:boolean }>}
  */
-export async function fetchAround(position, { apiDown = false } = {}) {
+export async function fetchAround(position, { apiDown = false, data = "mock" } = {}) {
+  if (data === "live") return fetchLive(position);
   await wait(250);
 
   if (apiDown) {

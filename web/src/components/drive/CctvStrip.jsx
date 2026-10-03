@@ -141,6 +141,11 @@ const Badge = styled.span`
     font-weight: 600;
     font-size: 12.5px;
     opacity: 0.92;
+    /* ITS 설명이 길 때 두 줄까지만 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 `;
 
@@ -149,7 +154,8 @@ export function EventBadge({ ev }) {
   return (
     <Badge $type={ev.type}>
       {d.value}
-      {d.unit} 앞 {EVENT_LABEL[ev.type]}, {ev.lanes}
+      {d.unit} 앞 {ev.label || EVENT_LABEL[ev.type]}
+      {ev.lanes ? `, ${ev.lanes}` : ""}
       {ev.message ? <em>{ev.message}</em> : null}
     </Badge>
   );

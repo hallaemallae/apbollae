@@ -13,14 +13,28 @@ apbollae/
 ```bash
 cd web
 npm install
-npm run dev     # http://localhost:3000  (같은 와이파이 폰에서는 http://<PC IP>:3000)
+npm run dev       # 터미널 1 — 웹앱 http://localhost:3000 (같은 와이파이 폰은 http://<PC IP>:3000)
+npm run proxy     # 터미널 2 — 실제 ITS 데이터를 쓸 때만. server/.env 의 ITS_API_KEY 필요
 ```
 오른쪽 가장자리의 **흐름** 탭을 열면 다음을 할 수 있습니다.
-- 현재 기능흐름도 단계와 예외(E1~E6) 확인
+- 현재 기능흐름도 단계(로그인 L1~L3, 주행 1~9)와 예외(E1~E6) 확인
+- **교통 데이터** 선택: `목업` 또는 `실제 ITS`(로컬 프록시 경유, 월 호출 한도에서 빠짐)
 - 주행 속도와 순간이동 조작
 - 터널, 송출 중단, ITS 장애, 권한 거부 상황 일으키기
 
 `?dev=0`을 붙이면 이 패널이 숨겨집니다.
+
+## 서버 구성
+- **로그인과 DB**는 Firebase를 씁니다(프로젝트 `apbollae`).
+  - Auth는 이메일만 실제 연동되어 있습니다.
+  - Firestore에는 `users/{uid}`가 있고, 규칙은 `firestore.rules`에 있습니다.
+- **ITS 프록시**의 공통 로직은 `server/functions/itsCore.js`에 있습니다(캐시, 월 한도 보호, 응답 정리).
+  - 개발할 때는 `server/dev-proxy.cjs`를 내 PC에서 돌립니다. **ITS가 Google Cloud IP를 막아서** Cloud Functions(`server/functions/index.js`)에서는 ITS를 부를 수 없습니다(2026-10-03 확인).
+  - 운영 서버는 국내 IP 환경에서 `itsCore.js`를 감싸서 띄워야 합니다. 아직 정하지 않았습니다.
+  - 로컬 사용량은 `server/.its-usage.json`에 셉니다. ITS 마이페이지 사용량도 함께 확인하세요.
+- **ITS 인증키**는 다음 두 곳에만 있습니다.
+  - `server/.env`: 커밋하지 않습니다.
+  - Firebase 시크릿 `ITS_API_KEY`
 
 ## 할래말래에서 가져온 것
 | 할래말래 | 앞볼래 |
@@ -33,9 +47,5 @@ npm run dev     # http://localhost:3000  (같은 와이파이 폰에서는 http:
 | RN Shell `App.js`, `bridge.js`, `useBootGuard`, `permissionHandler`, `locationTracker`, `linkingPolicy` | `mobile-shell/` (로그인·푸시·헬스·결제 제거, 위치는 1초·heading·speed로 강화) |
 
 ## 실제 연결 때 바꿀 곳
-- `web/src/services/itsApi.js`: 목업을 Firebase Functions 프록시 호출로 바꿉니다.
-- `web/src/components/drive/CctvPlayer.jsx`: `MockFeed`를 HLS 재생으로 바꿉니다.
-  - 웹: hls.js
-  - RN 네이티브 전환 시: react-native-video
 - `web/src/components/drive/MiniMap.jsx`: SVG를 MapLibre와 브이월드/OSM 타일로 바꿉니다.
 - `web/src/pages/DrivePage.jsx`의 `road`: 실제 GPS일 때 표준노드링크로 현재 도로와 방향을 매칭합니다.

@@ -218,6 +218,16 @@ export default function ScenarioPanel() {
         ))}
       </Chips>
 
+      <Label>교통 데이터</Label>
+      <Chips>
+        <Chip type="button" $on={scenario.data === "mock"} onClick={() => set({ data: "mock" })}>
+          목업
+        </Chip>
+        <Chip type="button" $on={scenario.data === "live"} onClick={() => set({ data: "live" })}>
+          실제 ITS (npm run proxy)
+        </Chip>
+      </Chips>
+
       <Label>위치 출처</Label>
       <Chips>
         <Chip type="button" $on={scenario.source === "sim"} onClick={() => set({ source: "sim" })}>

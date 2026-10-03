@@ -60,14 +60,14 @@ function classify(target, ctx, opts, nameDirection) {
   let status = "ahead";
   if (Math.abs(diff) > opts.halfAngle) status = "behind";
   else if (km > opts.maxKm) status = "far";
-  else if (ctx.roadName && target.roadName && target.roadName !== ctx.roadName) status = "otherRoad";
+  else if (ctx.roadNames?.length && target.roadName && !ctx.roadNames.includes(target.roadName)) status = "otherRoad";
   else if (ctx.direction && nameDirection && nameDirection !== ctx.direction) status = "opposite";
   return { km, diff, status };
 }
 
 /**
  * @param {Array} cctvs  [{ id, name, lat, lng, roadName? }]
- * @param {{ position:{lat,lng}, heading:number, roadName?:string, direction?:"up"|"down" }} ctx
+ * @param {{ position:{lat,lng}, heading:number, roadNames?:string[], direction?:"up"|"down" }} ctx  roadNames: 지금 도로의 표기들(경부고속도로·경부선)
  * @returns {{ selected: Array, all: Array }}  selected 는 가까운 순 최대 limit 개
  */
 export function selectAhead(cctvs, ctx, opts = AHEAD) {
@@ -88,7 +88,7 @@ export function attachEvents(events, selected, ctx, opts = AHEAD) {
   const byCctv = {};
   if (!selected.length) return byCctv;
   events.forEach((ev) => {
-    const { km, status } = classify(ev, ctx, opts, ev.direction || null);
+    const { km, status } = classify(ev, ctx, opts, ev.direction || directionFromName(ev.dirHint || ""));
     if (status !== "ahead") return;
     let nearest = null;
     let best = Infinity;

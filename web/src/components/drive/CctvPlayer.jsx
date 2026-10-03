@@ -1,13 +1,78 @@
 // src/components/drive/CctvPlayer.jsx
 // F-04 1순위 자동 재생 / E5 재생 실패 → onError 로 알리면 부모가 다음 CCTV 로 넘긴다.
 // 한 번에 1개만 재생한다(이 컴포넌트는 화면에 하나뿐).
-// 실제 연결 시: MockFeed 자리에 <video> + hls.js (RN 쪽은 react-native-video) 로 cctv.url 을 재생.
-import React, { useEffect, useState } from "react";
+// cctv.url 이 있으면(실제 ITS) HLS 영상을 재생하고, 없으면(목업) MockFeed 를 그린다.
+//  - Safari·iOS WebView 는 HLS 를 직접 재생, 그 밖(Chrome·Android WebView)은 hls.js 로 재생
+//  - ITS 영상 서버는 CORS 를 허용한다(Access-Control-Allow-Origin: *, 2026-10-03 확인)
+import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
+import Hls from "hls.js";
 import MockFeed from "./MockFeed";
 
 const CONNECT_MS = 900;
 const FAIL_MS = 1800;
+const LIVE_TIMEOUT_MS = 12000; // 이 안에 첫 화면이 안 나오면 송출 중단으로 본다(E5)
+
+const Video = styled.video`
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0e1012;
+`;
+
+/** 실제 CCTV HLS 재생. 첫 프레임이 나오면 onPlaying, 치명적 오류·시간 초과면 onFail */
+function LiveVideo({ url, onPlaying, onFail }) {
+  const ref = useRef(null);
+  const cb = useRef({ onPlaying, onFail });
+  cb.current = { onPlaying, onFail };
+
+  useEffect(() => {
+    const video = ref.current;
+    let hls = null;
+    let done = false;
+    const fail = (why) => {
+      if (done) return;
+      done = true;
+      console.warn("[cctv] 재생 실패:", why);
+      cb.current.onFail?.();
+    };
+    const timer = setTimeout(() => fail("timeout"), LIVE_TIMEOUT_MS);
+    const playing = () => {
+      clearTimeout(timer);
+      cb.current.onPlaying?.();
+    };
+    video.addEventListener("playing", playing);
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = url;
+      video.addEventListener("error", () => fail("native error"), { once: true });
+      video.play().catch(() => {});
+    } else if (Hls.isSupported()) {
+      hls = new Hls({ lowLatencyMode: true, liveSyncDurationCount: 2, maxBufferLength: 10 });
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal) fail(`${data.type}/${data.details}`);
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    } else {
+      fail("hls unsupported");
+    }
+
+    return () => {
+      done = true;
+      clearTimeout(timer);
+      video.removeEventListener("playing", playing);
+      hls?.destroy();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [url]);
+
+  // 음성 없음(운전자 주의 분산 방지) · 인라인 재생 · 자동 재생
+  return <Video ref={ref} muted playsInline autoPlay aria-label="CCTV 실시간 영상" />;
+}
 
 const Frame = styled.div`
   position: relative;
@@ -115,9 +180,11 @@ export default function CctvPlayer({ cctv, willFail, blocked, onError }) {
   const [phase, setPhase] = useState("connecting"); // connecting | playing | failed
   const now = useClock();
 
+  const live = !!cctv?.url;
+
   useEffect(() => {
     setPhase("connecting");
-    if (!cctv) return undefined;
+    if (!cctv || live) return undefined; // 실제 영상은 LiveVideo 가 단계를 알린다
     if (willFail) {
       const t = setTimeout(() => {
         setPhase("failed");
@@ -129,11 +196,22 @@ export default function CctvPlayer({ cctv, willFail, blocked, onError }) {
     return () => clearTimeout(t);
     // onError 는 부모 렌더마다 바뀌어도 재연결하면 안 된다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cctv?.id, willFail]);
+  }, [cctv?.id, willFail, live]);
 
   return (
     <Frame>
-      {cctv && phase === "playing" && <MockFeed seed={cctv.id} flow={cctv.flow} blocked={blocked} />}
+      {cctv && live && phase !== "failed" && (
+        <LiveVideo
+          key={cctv.id}
+          url={cctv.url}
+          onPlaying={() => setPhase("playing")}
+          onFail={() => {
+            setPhase("failed");
+            onError?.(cctv);
+          }}
+        />
+      )}
+      {cctv && !live && phase === "playing" && <MockFeed seed={cctv.id} flow={cctv.flow} blocked={blocked} />}
 
       {cctv && phase === "connecting" && (
         <Layer>
@@ -162,7 +240,7 @@ export default function CctvPlayer({ cctv, willFail, blocked, onError }) {
               {now.getFullYear()}-{pad(now.getMonth() + 1)}-{pad(now.getDate())} {pad(now.getHours())}:
               {pad(now.getMinutes())}:{pad(now.getSeconds())}
             </span>
-            <span>출처: 국가교통정보센터(ITS) · 모의 영상</span>
+            <span>출처: 국가교통정보센터(ITS){live ? "" : " · 모의 영상"}</span>
           </Bottom>
         </>
       )}
