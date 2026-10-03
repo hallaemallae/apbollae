@@ -30,18 +30,18 @@ rm -rf src && cp -R ../mobile-shell/src ./src && cp ../mobile-shell/App.js ./App
   ```xml
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-  <application android:usesCleartextTraffic="true" ...>  <!-- 개발 중 http://PC:3000 접속용 -->
+  <application android:usesCleartextTraffic="true" ...>  <!-- 개발 중 http://PC:3001 접속용 -->
   ```
 - iOS `Info.plist`: `NSLocationWhenInUseUsageDescription` = "현재 위치와 진행 방향으로 앞쪽 CCTV를 고르기 위해 사용해요."
 
 ## 5. 실행
 ```bash
 # 터미널 1 — 웹
-cd ../web && npm run dev          # http://localhost:3000
+cd ../web && npm run dev          # http://localhost:3001
 # 터미널 2 — 앱
-npx react-native run-android      # 에뮬레이터는 AppConfig.webUrl = http://10.0.2.2:3000
+npx react-native run-android      # 에뮬레이터는 AppConfig.webUrl = http://10.0.2.2:3001
 ```
-실기기에서는 `src/config/AppConfig.js`의 `webUrl`을 PC 내부 IP(예: `http://192.168.1.11:3000`)로 바꿔 주세요.
+실기기에서는 `src/config/AppConfig.js`의 `webUrl`을 PC 내부 IP(예: `http://192.168.1.11:3001`)로 바꿔 주세요.
 
 ## 브릿지 메시지 (Web ↔ RN)
 | 방향 | type | payload |

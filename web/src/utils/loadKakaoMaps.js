@@ -2,7 +2,7 @@
 // 카카오 지도 SDK 로더 — 할래말래 loadKakaoMaps.js 에서 지도 부분만 가져왔다(주소검색 제외).
 //
 // 키: web/.env.local 의 VITE_KAKAO_JS_KEY (카카오 디벨로퍼스 > 앞볼래 앱 > JavaScript 키)
-//   - 웹 도메인 등록 필요: http://localhost:3000, 폰 테스트용 http://<PC IP>:3000, 배포 주소
+//   - 웹 도메인 등록 필요: http://localhost:3001, 폰 테스트용 http://<PC IP>:3001, 배포 주소
 //   - JavaScript 키는 브라우저로 내려가는 공개 값이다(도메인으로 사용처를 제한한다).
 // 키가 없거나 SDK 를 못 받으면 reject → 호출한 쪽이 간이 지도(SVG)로 대신 그린다.
 

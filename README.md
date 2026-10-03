@@ -13,7 +13,7 @@ apbollae/
 ```bash
 cd web
 npm install
-npm run dev       # 터미널 1 — 웹앱 http://localhost:3000 (같은 와이파이 폰은 http://<PC IP>:3000)
+npm run dev       # 터미널 1 — 웹앱 http://localhost:3001 (같은 와이파이 폰은 http://<PC IP>:3001)
 npm run proxy     # 터미널 2 — 실제 ITS 데이터를 쓸 때만. server/.env 의 ITS_API_KEY 필요
 ```
 오른쪽 가장자리의 **흐름** 탭을 열면 다음을 할 수 있습니다.

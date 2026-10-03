@@ -4,8 +4,8 @@ export const AppConfig = {
   appVersion: "0.1.0",
 
   // 개발: PC 에서 `npm run dev`(web/) 로 띄운 주소. 실기기는 localhost 대신 PC 의 내부 IP 를 넣는다.
-  //   Android 에뮬레이터: http://10.0.2.2:3000
-  webUrl: __DEV__ ? "http://10.0.2.2:3000" : "https://apbollae.web.app",
+  //   Android 에뮬레이터: http://10.0.2.2:3001
+  webUrl: __DEV__ ? "http://10.0.2.2:3001" : "https://apbollae.web.app",
 
   features: {
     enableLocation: true,
