@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "768630054464",
+    "project_id": "apbollae",
+    "storage_bucket": "apbollae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:768630054464:android:4cfed1596f706e18ff89a5",
+        "android_client_info": {
+          "package_name": "com.ilsaeng.apbollae"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANh4zJiCRhfQhM9xvWIdF-7NKt__ZYmkk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

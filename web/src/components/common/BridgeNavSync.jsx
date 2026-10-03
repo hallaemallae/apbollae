@@ -7,7 +7,7 @@ import { useBridge } from "../../context/WebviewBridgeContext";
 import { showToast } from "../../utils/toast";
 
 // 더 뒤로 갈 곳이 없는 화면 → 뒤로가기 두 번이면 종료
-const ROOTS = ["/", "/confirm", "/permission", "/drive"];
+const ROOTS = ["/", "/login", "/confirm", "/permission", "/drive"];
 const ARM_WINDOW_MS = 2000;
 
 export default function BridgeNavSync() {

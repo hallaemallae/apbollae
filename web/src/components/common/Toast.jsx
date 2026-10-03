@@ -17,6 +17,7 @@ const Bubble = styled.div`
   font-weight: 600;
   text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  pointer-events: none; /* 아래 버튼을 가리지 않게 — 토스트는 누를 수 없다 */
   animation: toastIn 0.18s ease-out;
   @keyframes toastIn {
     from { opacity: 0; transform: translate(-50%, 8px); }

@@ -1,10 +1,13 @@
 // 앱 정보·설정 — 동승자 재확인, 테마, 데이터 안내, 출처·오픈소스 라이선스 고지
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { FiChevronLeft } from "react-icons/fi";
 import { useFlow } from "../context/FlowContext";
 import { useThemeMode } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
+import { authErrorMessage, PROVIDER_LABEL } from "../services/authService";
+import { showToast } from "../utils/toast";
 
 const Page = styled.div`
   max-width: ${({ theme }) => theme.layout.maxWidth}px;
@@ -95,6 +98,7 @@ const OSS = [
   ["React / React Router", "MIT"],
   ["styled-components", "MIT"],
   ["React Icons (Feather)", "MIT"],
+  ["Firebase JS SDK", "Apache-2.0"],
   ["Pretendard", "OFL-1.1"],
   ["Barlow Semi Condensed", "OFL-1.1"],
 ];
@@ -103,6 +107,35 @@ export default function InfoPage() {
   const navigate = useNavigate();
   const { resetDrive } = useFlow();
   const { mode, toggleMode } = useThemeMode();
+  const auth = useAuth();
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+
+  // 탈퇴 버튼은 두 번 눌러야 실행 — 4초 안에 다시 누르지 않으면 원래대로
+  useEffect(() => {
+    if (!confirmWithdraw) return undefined;
+    const t = setTimeout(() => setConfirmWithdraw(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirmWithdraw]);
+
+  const logout = async () => {
+    await auth.signOut();
+    resetDrive();
+    showToast("로그아웃했어요");
+    navigate("/login", { replace: true });
+  };
+
+  const withdraw = async () => {
+    if (!confirmWithdraw) return setConfirmWithdraw(true);
+    try {
+      await auth.deleteAccount();
+      resetDrive();
+      showToast("탈퇴했어요. 그동안 고마웠어요.");
+      navigate("/login", { replace: true });
+    } catch (err) {
+      setConfirmWithdraw(false);
+      showToast(authErrorMessage(err), 3500);
+    }
+  };
 
   return (
     <Page>
@@ -112,6 +145,31 @@ export default function InfoPage() {
         </button>
         <h1>앱 정보</h1>
       </Bar>
+
+      <Section>
+        <h2>계정</h2>
+        <Group>
+          {auth.user ? (
+            <>
+              <Row as="div">
+                {auth.user.email || auth.user.displayName}
+                <span>{PROVIDER_LABEL[auth.user.provider]}{auth.user.provider === "email" ? "" : " (목업)"}</span>
+              </Row>
+              <Row type="button" onClick={logout}>
+                로그아웃
+              </Row>
+              <Row type="button" onClick={withdraw} style={confirmWithdraw ? { color: "#E5483B" } : undefined}>
+                {confirmWithdraw ? "한 번 더 누르면 탈퇴돼요" : "회원 탈퇴"}
+              </Row>
+            </>
+          ) : (
+            <Row type="button" onClick={() => navigate("/login")}>
+              로그인하기
+              <span>지금은 로그인 없이 쓰는 중</span>
+            </Row>
+          )}
+        </Group>
+      </Section>
 
       <Section>
         <h2>주행</h2>
@@ -148,6 +206,21 @@ export default function InfoPage() {
             CCTV 영상과 돌발상황(사고·공사·통제) 정보는 <b>국가교통정보센터(ITS)</b>가 공공누리 제1유형으로 제공해요. 앞볼래는 영상을 녹화하거나
             저장하지 않아요.
           </Text>
+        </Group>
+      </Section>
+
+      <Section>
+        <h2>약관</h2>
+        <Group>
+          <Row type="button" onClick={() => navigate("/terms")}>
+            서비스 이용약관
+          </Row>
+          <Row type="button" onClick={() => navigate("/privacy")}>
+            개인정보 처리방침
+          </Row>
+          <Row type="button" onClick={() => navigate("/location-terms")}>
+            위치기반서비스 이용약관
+          </Row>
         </Group>
       </Section>
 

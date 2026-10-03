@@ -42,9 +42,17 @@ const Bar = styled.header`
 `;
 
 const Word = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 9px;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.04em;
+  img {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
 `;
 
 const IconBtn = styled.button`
@@ -241,7 +249,10 @@ export default function DrivePage() {
     <Page>
       <Sticky>
         <Bar>
-          <Word>앞볼래</Word>
+          <Word>
+            <img src="/logo-192.png" alt="" />
+            앞볼래
+          </Word>
           <IconBtn type="button" aria-label="앱 정보와 설정" onClick={() => navigate("/info")}>
             <FiInfo size={22} />
           </IconBtn>

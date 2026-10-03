@@ -8,7 +8,7 @@
  * 새 앱 생성 루틴(할래말래와 동일 — 프로젝트 통째 복사 금지, init 후 JS Shell 만 가져온다)은 README.md 참고.
  */
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { Animated, BackHandler, Platform, SafeAreaView, StatusBar, StyleSheet, Text, View } from "react-native";
+import { Animated, BackHandler, Image, Platform, SafeAreaView, StatusBar, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 import { AppConfig } from "./src/config/AppConfig";
 import { createBridge } from "./src/bridge/bridge";
@@ -21,8 +21,8 @@ import {
 } from "./src/features/permission/permissionHandler";
 import { startLocationTracker } from "./src/features/location/locationTracker";
 
-const BG = "#1C2024"; // web theme.colors.bg (다크) — 스플래시→웹 전환 때 배경이 튀지 않게
-const SIGN = "#0B6B4C";
+const BG = "#0A0A0B"; // 로고 바탕색 = 웹 스플래시 배경 — 스플래시→웹 전환 때 배경이 튀지 않게
+const logoImg = require("./src/assets/logo-512.png");
 
 export default function App() {
   const webViewRef = useRef(null);
@@ -178,10 +178,7 @@ export default function App() {
 
       {guard.splashVisible ? (
         <Animated.View style={[styles.splash, { opacity: guard.splashOpacity }]}>
-          <View style={styles.sign}>
-            <Text style={styles.arrow}>↑</Text>
-            <Text style={styles.word}>앞볼래</Text>
-          </View>
+          <Image source={logoImg} style={styles.logo} resizeMode="contain" />
         </Animated.View>
       ) : null}
     </View>
@@ -197,16 +194,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sign: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    borderWidth: 3,
-    borderColor: "#ffffff",
-    backgroundColor: SIGN,
-  },
-  arrow: { color: "#fff", fontSize: 38, fontWeight: "800", marginRight: 12 },
-  word: { color: "#fff", fontSize: 38, fontWeight: "800" },
+  logo: { width: 168, height: 168 },
 });

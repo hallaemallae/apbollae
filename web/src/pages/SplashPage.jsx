@@ -2,9 +2,10 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import styled, { keyframes } from "styled-components";
-import { FiArrowUp } from "react-icons/fi";
+import { BrandLogo } from "../components/auth/AuthParts";
 import { useBridge } from "../context/WebviewBridgeContext";
 import { useScenario } from "../context/ScenarioContext";
+import { useAuth } from "../context/AuthContext";
 
 const Screen = styled.main`
   min-height: 100%;
@@ -14,57 +15,46 @@ const Screen = styled.main`
   justify-content: center;
   gap: 18px;
   padding: 24px;
-  background: ${({ theme }) => theme.colors.bg};
+  background: #0a0a0b; /* 로고 바탕색과 같게 — RN 네이티브 스플래시에서 넘어올 때 튀지 않게 */
 `;
 
 const rise = keyframes`
-  from { transform: translateY(14px); opacity: 0; }
+  from { transform: scale(0.94); opacity: 0; }
 `;
 
-const Sign = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 26px 18px 22px;
-  border-radius: 10px;
-  background: ${({ theme }) => theme.colors.sign};
-  color: #fff;
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.sign};
-  animation: ${rise} 0.5s ease-out;
-`;
-
-const Word = styled.h1`
-  margin: 0;
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
+const Logo = styled.div`
+  animation: ${rise} 0.45s ease-out;
 `;
 
 const Sub = styled.p`
   margin: 0;
   font-size: 15px;
-  color: ${({ theme }) => theme.colors.textWeak};
+  color: #9a9ca0;
 `;
 
 export default function SplashPage() {
   const navigate = useNavigate();
   const bridge = useBridge();
   const { reportFlow } = useScenario();
+  const { loading } = useAuth();
 
   useEffect(() => {
     reportFlow(1);
     bridge?.signalWebReady("splash");
+  }, [bridge, reportFlow]);
+
+  // 로그인 복원이 끝나면 이동 — 로그인 화면으로 갈지는 /confirm 의 RequireEntry 가 정한다
+  useEffect(() => {
+    if (loading) return undefined;
     const t = setTimeout(() => navigate("/confirm", { replace: true }), 1300);
     return () => clearTimeout(t);
-  }, [navigate, bridge, reportFlow]);
+  }, [loading, navigate]);
 
   return (
     <Screen>
-      <Sign>
-        <FiArrowUp size={40} strokeWidth={3} aria-hidden="true" />
-        <Word>앞볼래</Word>
-      </Sign>
+      <Logo>
+        <BrandLogo size={168} />
+      </Logo>
       <Sub>조수석에서 보는 내 앞 도로</Sub>
     </Screen>
   );

@@ -7,7 +7,7 @@
 ## 1. 새 앱 init
 ```bash
 cd "26 -2/apbollae"
-npx @react-native-community/cli@15.0.0 init Apbollae --version 0.77.0 --package-name com.hongcomms.apbollae
+npx @react-native-community/cli@15.0.0 init Apbollae --version 0.77.0 --package-name com.ilsaeng.apbollae
 cd Apbollae
 npm i react-native-webview @react-native-community/geolocation
 ```
@@ -17,7 +17,15 @@ npm i react-native-webview @react-native-community/geolocation
 rm -rf src && cp -R ../mobile-shell/src ./src && cp ../mobile-shell/App.js ./App.js
 ```
 
-## 3. 네이티브 권한
+## 3. Firebase 설정 파일
+`mobile-shell/firebase/`에 콘솔에서 받은 파일이 있습니다. 패키지명과 번들 ID는 둘 다 `com.ilsaeng.apbollae`입니다.
+- Android: `firebase/google-services.json` → `android/app/google-services.json`
+- iOS: `firebase/GoogleService-Info.plist` → Xcode에서 `ios/Apbollae/`에 추가합니다. Copy Bundle Resources에 들어갔는지 확인하세요.
+
+웹앱이 로그인과 DB를 직접 처리하기 때문에, 지금은 이 파일이 없어도 앱이 돌아갑니다.
+나중에 네이티브 소셜 로그인이나 푸시를 붙일 때 필요합니다.
+
+## 4. 네이티브 권한
 - Android `android/app/src/main/AndroidManifest.xml`
   ```xml
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -26,7 +34,7 @@ rm -rf src && cp -R ../mobile-shell/src ./src && cp ../mobile-shell/App.js ./App
   ```
 - iOS `Info.plist`: `NSLocationWhenInUseUsageDescription` = "현재 위치와 진행 방향으로 앞쪽 CCTV를 고르기 위해 사용해요."
 
-## 4. 실행
+## 5. 실행
 ```bash
 # 터미널 1 — 웹
 cd ../web && npm run dev          # http://localhost:3000

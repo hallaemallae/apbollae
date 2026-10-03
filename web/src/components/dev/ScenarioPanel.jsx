@@ -7,9 +7,15 @@ import styled from "styled-components";
 import { FiSliders, FiX } from "react-icons/fi";
 import { useScenario } from "../../context/ScenarioContext";
 import { useFlow } from "../../context/FlowContext";
+import { useAuth } from "../../context/AuthContext";
 import { SPEED_PRESETS, teleport } from "../../services/simulator";
 import { NO_CCTV_INDEX } from "../../mock/route";
 
+const LOGIN_STEPS = [
+  ["L1", "로그인"],
+  ["L2", "약관 동의"],
+  ["L3", "가입 완료"],
+];
 const STEPS = ["앱 실행", "동승자 확인", "위치 권한", "위치·방향 산출", "전방 CCTV 선별", "목록·자동 재생", "돌발 배지", "카드 전환", "자동 갱신"];
 const EXCEPTIONS = {
   E1: "동승자 미확인",
@@ -154,6 +160,7 @@ export default function ScenarioPanel() {
   const navigate = useNavigate();
   const { scenario, set, flowStatus } = useScenario();
   const { resetDrive, setPermission } = useFlow();
+  const auth = useAuth();
 
   if (!open) {
     return (
@@ -179,6 +186,18 @@ export default function ScenarioPanel() {
           <FiX size={22} />
         </button>
       </Head>
+
+      <Label>
+        로그인 흐름 {auth.user ? `· ${auth.user.email || auth.user.displayName}` : auth.isGuest ? "· 로그인 없이 사용 중" : ""}
+      </Label>
+      <Steps>
+        {LOGIN_STEPS.map(([code, s]) => (
+          <li key={code} data-on={flowStatus.step === code}>
+            <b>{code}</b>
+            {s}
+          </li>
+        ))}
+      </Steps>
 
       <Label>기능흐름도 단계</Label>
       <Steps>
@@ -251,6 +270,16 @@ export default function ScenarioPanel() {
           }}
         >
           앱 다시 실행
+        </Chip>
+        <Chip
+          type="button"
+          onClick={async () => {
+            await auth.resetEntry();
+            resetDrive();
+            navigate("/", { replace: true });
+          }}
+        >
+          첫 설치 상태로(로그인부터)
         </Chip>
         <Chip
           type="button"
