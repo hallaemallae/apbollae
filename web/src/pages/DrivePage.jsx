@@ -212,8 +212,7 @@ export default function DrivePage() {
     body = <EmptyState icon={<FiNavigation />} text="위치와 진행 방향을 확인하고 있어요" sub="조금 움직이면 방향이 잡혀요." />;
   } else if (ahead.error) {
     // 개발 중에는 원인을 바로 알 수 있게 — 로컬 프록시가 꺼져 있는 경우가 대부분이다
-    const devHint = import.meta.env.DEV && scenario.data === "live" ? "
-로컬 프록시(web 폴더에서 npm run proxy)가 켜져 있는지 확인해 주세요." : "";
+    const devHint = import.meta.env.DEV && scenario.data === "live" ? "\n로컬 프록시(web 폴더에서 npm run proxy)가 켜져 있는지 확인해 주세요." : "";
     body = <EmptyState icon={<FiCloudOff />} text="교통정보 서버에 연결하지 못했어요" sub={`${ahead.secondsLeft ?? 30}초 뒤에 다시 시도해요.${devHint}`} />;
   } else if (empty) {
     body = (
