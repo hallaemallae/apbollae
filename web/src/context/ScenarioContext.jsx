@@ -2,6 +2,7 @@
 // 흐름 점검용 시나리오 스위치(개발 패널이 조작). DB·서버 없이 E1~E6 를 재현하기 위한 것이다.
 // flowStatus 는 각 화면이 "지금 기능흐름도 몇 단계·어떤 예외인지"를 보고하는 자리다.
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { REVIEW_MOCK } from "../dev/reviewMock";
 
 const DEFAULTS = {
   source: "device", // device: 실제 위치(RN GPS 또는 브라우저) | sim: 경부고속도로 시뮬레이션 주행
@@ -16,7 +17,7 @@ const DEFAULTS = {
 const ScenarioContext = createContext(null);
 
 export function ScenarioProvider({ children }) {
-  const [scenario, setScenario] = useState(DEFAULTS);
+  const [scenario, setScenario] = useState(() => ({ ...DEFAULTS, ...REVIEW_MOCK?.scenario }));
   const [flowStatus, setFlowStatus] = useState({ step: 1, exceptions: [] });
   const lastKeyRef = useRef("");
 

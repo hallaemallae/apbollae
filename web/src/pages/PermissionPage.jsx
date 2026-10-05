@@ -15,23 +15,47 @@ const Pin = styled.div`
   width: 64px;
   height: 64px;
   margin-bottom: 24px;
-  border-radius: 18px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${({ theme, $off }) => ($off ? theme.colors.raised : theme.colors.sign)};
-  color: ${({ theme, $off }) => ($off ? theme.colors.danger : "#fff")};
+  border: 2px solid ${({ theme, $off }) => ($off ? theme.colors.danger : theme.colors.primary)};
+  color: ${({ theme, $off }) => ($off ? theme.colors.danger : theme.colors.primary)};
 `;
 
-const Points = styled.ul`
-  margin: 0;
-  padding-left: 20px;
+// 번호 붙은 항목 — 면 색 박스 없이 위 구분선만
+const Points = styled.ol`
+  list-style: none;
+  counter-reset: pt;
+  margin: 8px 0 0;
+  padding: 18px 2px 0;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 15px;
-  line-height: 1.5;
+  gap: 12px;
+  font-size: 14.5px;
+  line-height: 1.55;
   color: ${({ theme }) => theme.colors.textNormal};
+  li {
+    counter-increment: pt;
+    display: flex;
+    gap: 10px;
+  }
+  li::before {
+    content: counter(pt);
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme }) => theme.colors.primaryText};
+    font-size: 12px;
+    font-weight: 800;
+  }
 `;
 
 /** 권한 요청 — 시뮬레이션 / RN 셸 / 브라우저 */

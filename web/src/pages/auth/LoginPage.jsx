@@ -3,7 +3,7 @@
 // 카카오·구글·Apple 은 아직 목업: 누르면 바로 다음 화면(약관 동의)으로 간다.
 import React, { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
 import { FaApple } from "react-icons/fa";
 import { FiMail } from "react-icons/fi";
 import { AuthScreen, BrandLogo, BusyOverlay, TextLink } from "../../components/auth/AuthParts";
@@ -17,14 +17,15 @@ const Hero = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 20px;
   padding: calc(env(safe-area-inset-top) + 40px) 0 24px;
   text-align: center;
-  p {
-    margin: 0;
-    font-size: 16px;
-    line-height: 1.6;
-    color: ${({ theme }) => theme.colors.textNormal};
+  h1 {
+    margin: 6px 0 0;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.45;
+    letter-spacing: -0.03em;
   }
 `;
 
@@ -43,7 +44,7 @@ const Social = styled.button`
   justify-content: center;
   gap: 10px;
   border-radius: ${({ theme }) => theme.radius.md}px;
-  border: ${({ $border, theme }) => ($border ? `1.5px solid ${theme.colors.border}` : "none")};
+  border: ${({ $border, theme }) => ($border ? `1px solid ${theme.colors.border}` : "none")};
   background: ${({ $bg }) => $bg};
   color: ${({ $fg }) => $fg};
   font-size: 16px;
@@ -58,9 +59,9 @@ const Social = styled.button`
 `;
 
 const Note = styled.p`
-  margin: 6px 0 0;
+  margin: 0;
   text-align: center;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
@@ -89,6 +90,7 @@ function GoogleIcon() {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const theme = useTheme();
   const { user, loading, signInMock, continueAsGuest } = useAuth();
   const { reportFlow } = useScenario();
   const [busy, setBusy] = useState(false);
@@ -119,12 +121,12 @@ export default function LoginPage() {
     <AuthScreen>
       {busy ? <BusyOverlay /> : null}
       <Hero>
-        <BrandLogo size={144} />
-        <p>
+        <BrandLogo size={120} />
+        <h1>
           차가 막힐 때, 내 앞 도로 CCTV를
           <br />
           가까운 순서로 바로 보여 드려요.
-        </p>
+        </h1>
       </Hero>
 
       <Buttons>
@@ -132,15 +134,15 @@ export default function LoginPage() {
           <KakaoIcon />
           카카오로 시작하기
         </Social>
-        <Social type="button" $bg="#FFFFFF" $fg="#1F1F1F" disabled={busy} onClick={() => mockLogin("google")}>
+        <Social type="button" $bg="#FFFFFF" $fg="#1F1F1F" $border disabled={busy} onClick={() => mockLogin("google")}>
           <GoogleIcon />
           구글로 시작하기
         </Social>
-        <Social type="button" $bg="#000000" $fg="#FFFFFF" $border disabled={busy} onClick={() => mockLogin("apple")}>
+        <Social type="button" $bg="#000000" $fg="#FFFFFF" disabled={busy} onClick={() => mockLogin("apple")}>
           <FaApple size={21} aria-hidden="true" />
           Apple로 시작하기
         </Social>
-        <Social type="button" $bg="transparent" $fg="inherit" $border disabled={busy} onClick={() => navigate("/login/email")}>
+        <Social type="button" $bg={theme.colors.raised} $fg="inherit" disabled={busy} onClick={() => navigate("/login/email")}>
           <FiMail size={20} aria-hidden="true" />
           이메일로 시작하기
         </Social>

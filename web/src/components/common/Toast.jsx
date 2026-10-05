@@ -9,14 +9,14 @@ const Bubble = styled.div`
   transform: translateX(-50%);
   z-index: 2000;
   max-width: min(420px, calc(100vw - 32px));
-  padding: 12px 18px;
-  border-radius: ${({ theme }) => theme.radius.md}px;
-  background: ${({ theme }) => (theme.mode === "dark" ? "#F2F3F0" : "#15191C")};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#15191C" : "#F2F3F0")};
+  padding: 13px 20px;
+  border-radius: ${({ theme }) => theme.radius.pill}px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(242, 243, 245, 0.96)" : "rgba(25, 27, 30, 0.92)")};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#191B1E" : "#FFFFFF")};
   font-size: 14px;
   font-weight: 600;
   text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: ${({ theme }) => theme.shadow.float};
   pointer-events: none; /* 아래 버튼을 가리지 않게 — 토스트는 누를 수 없다 */
   animation: toastIn 0.18s ease-out;
   @keyframes toastIn {

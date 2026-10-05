@@ -10,6 +10,10 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../config/firebase";
 import * as authService from "../services/authService";
+import { mockAuthOverride } from "../dev/reviewMock";
+
+// 리뷰 허브 프레임 안에서만 값이 있다(src/dev/reviewMock.js)
+const REVIEW_AUTH = mockAuthOverride();
 
 const AuthContext = createContext(null);
 
@@ -119,7 +123,8 @@ export function AuthProvider({ children }) {
     [fbUser, user, isGuest, needsConsent, needsWelcome, afterLogin, profileState]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const shown = useMemo(() => (REVIEW_AUTH ? { ...value, ...REVIEW_AUTH } : value), [value]);
+  return <AuthContext.Provider value={shown}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

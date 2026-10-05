@@ -4,8 +4,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { FiCheck, FiChevronRight } from "react-icons/fi";
+import { FiChevronRight } from "react-icons/fi";
 import Button from "../../components/common/Button";
+import CheckCircle from "../../components/common/CheckCircle";
 import { AuthScreen, BrandLogo, TextLink } from "../../components/auth/AuthParts";
 import { useAuth } from "../../context/AuthContext";
 import { useScenario } from "../../context/ScenarioContext";
@@ -23,28 +24,16 @@ const Head = styled.div`
   padding: calc(env(safe-area-inset-top) + 40px) 0 28px;
   h1 {
     margin: 22px 0 8px;
-    font-size: 24px;
-    font-weight: 800;
-    letter-spacing: -0.035em;
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
   }
   p {
     margin: 0;
-    font-size: 15px;
-    color: ${({ theme }) => theme.colors.textNormal};
+    font-size: 15.5px;
+    line-height: 1.6;
+    color: ${({ theme }) => theme.colors.textWeak};
   }
-`;
-
-const Box = styled.span`
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme, $on }) => ($on ? theme.colors.lane : "transparent")};
-  border: 2px solid ${({ theme, $on }) => ($on ? theme.colors.lane : theme.colors.textWeak)};
-  color: ${({ theme }) => theme.colors.laneText};
 `;
 
 const All = styled.button`
@@ -54,17 +43,18 @@ const All = styled.button`
   align-items: center;
   gap: 14px;
   padding: 0 16px;
-  border-radius: ${({ theme }) => theme.radius.md}px;
-  border: 2px solid ${({ theme, $on }) => ($on ? theme.colors.lane : theme.colors.border)};
-  background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.radius.lg}px;
+  border: 1.5px solid ${({ theme, $on }) => ($on ? theme.colors.primary : theme.colors.border)};
+  background: transparent;
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
   text-align: left;
+  transition: background 0.15s ease;
 `;
 
 const List = styled.ul`
   list-style: none;
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   padding: 0;
 `;
 
@@ -84,12 +74,13 @@ const RowCheck = styled.button`
   background: transparent;
   text-align: left;
   font-size: 15.5px;
-  font-weight: 600;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textNormal};
   em {
     font-style: normal;
     font-weight: 700;
     margin-right: 4px;
-    color: ${({ theme, $req }) => ($req ? theme.colors.lane : theme.colors.textWeak)};
+    color: ${({ theme, $req }) => ($req ? theme.colors.primary : theme.colors.textWeak)};
   }
 `;
 
@@ -141,9 +132,7 @@ export default function AgreementGate() {
       </Head>
 
       <All type="button" role="checkbox" aria-checked={allOn} $on={allOn} onClick={toggleAll}>
-        <Box $on={allOn} aria-hidden="true">
-          {allOn ? <FiCheck size={18} strokeWidth={3.5} /> : null}
-        </Box>
+        <CheckCircle on={allOn} />
         전체 동의 (선택 항목 포함)
       </All>
 
@@ -151,9 +140,7 @@ export default function AgreementGate() {
         {ITEMS.map((i) => (
           <Row key={i.key}>
             <RowCheck type="button" role="checkbox" aria-checked={!!checked[i.key]} $req={i.required} onClick={() => toggle(i.key)}>
-              <Box $on={!!checked[i.key]} aria-hidden="true">
-                {checked[i.key] ? <FiCheck size={18} strokeWidth={3.5} /> : null}
-              </Box>
+              <CheckCircle on={!!checked[i.key]} size={22} />
               <span>
                 <em>{i.required ? "[필수]" : "[선택]"}</em>
                 {i.label}

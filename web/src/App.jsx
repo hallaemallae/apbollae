@@ -1,5 +1,5 @@
-import React from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import React, { Suspense, lazy, useRef } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ThemeProvider } from "styled-components";
 import GlobalStyle from "./theme/GlobalStyle";
 import { darkTheme, lightTheme } from "./theme/theme";
@@ -24,9 +24,14 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import AgreementGate from "./pages/auth/AgreementGate";
 import SignupCompletePage from "./pages/auth/SignupCompletePage";
 import LegalPage from "./pages/legal/LegalPage";
+import { IN_REVIEW_FRAME, REVIEW_FREEZE } from "./dev/reviewMock";
 
-// 흐름 점검 패널 — 개발 서버에서는 기본으로 보이고, ?dev=0 이면 숨긴다
-const SHOW_DEV = new URLSearchParams(window.location.search).get("dev") !== "0";
+// 개발용 화면 리뷰 허브 — 할래말래 /review 를 옮겨 왔다. 출시 빌드에는 들어가지 않는다.
+const ReviewHub = import.meta.env.DEV ? lazy(() => import("./dev/ReviewHub")) : null;
+
+// 흐름 점검 패널 — 개발 서버에서는 기본으로 보이고, ?dev=0 이면 숨긴다.
+// 리뷰 허브(/review) 프레임 안에서도 숨긴다 — 목업 화면만 깔끔하게 보이도록
+const SHOW_DEV = new URLSearchParams(window.location.search).get("dev") !== "0" && !IN_REVIEW_FRAME;
 
 /**
  * 로그인 게이트 — 할래말래 RequireAuth → RequireConsent → RequireWelcome 를 한 컴포넌트로 줄였다.
@@ -57,6 +62,9 @@ function RequirePassenger({ children }) {
 
 function ThemedApp() {
   const { mode } = useThemeMode();
+  // 리뷰 허브의 "고정" 프레임 — 페이지가 navigate() 해도 처음 연 화면을 계속 그린다
+  const location = useLocation();
+  const entryLocation = useRef(location).current;
   return (
     <ThemeProvider theme={mode === "light" ? lightTheme : darkTheme}>
       <GlobalStyle />
@@ -66,7 +74,7 @@ function ThemedApp() {
           <FlowProvider>
             <BridgeNavSync />
             <OfflineBanner />
-            <Routes>
+            <Routes location={REVIEW_FREEZE ? entryLocation : location}>
               <Route path="/" element={<SplashPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/login/email" element={<EmailLoginPage />} />
@@ -114,8 +122,25 @@ function ThemedApp() {
 
 export default function App() {
   return (
-    <ThemeModeProvider>
-      <ThemedApp />
-    </ThemeModeProvider>
+    <Routes>
+      {ReviewHub ? (
+        <Route
+          path="/review/:id?"
+          element={
+            <Suspense fallback={null}>
+              <ReviewHub />
+            </Suspense>
+          }
+        />
+      ) : null}
+      <Route
+        path="*"
+        element={
+          <ThemeModeProvider>
+            <ThemedApp />
+          </ThemeModeProvider>
+        }
+      />
+    </Routes>
   );
 }

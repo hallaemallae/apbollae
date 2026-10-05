@@ -36,11 +36,10 @@ const DOCS = {
 const Draft = styled.p`
   margin: 0 0 20px;
   padding: 10px 14px;
-  border-radius: ${({ theme }) => theme.radius.sm}px;
-  background: ${({ theme }) => theme.colors.surface};
-  border-left: 4px solid ${({ theme }) => theme.colors.work};
+  border-radius: ${({ theme }) => theme.radius.md}px;
+  background: ${({ theme }) => theme.colors.bg};
   font-size: 13.5px;
-  color: ${({ theme }) => theme.colors.textNormal};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Article = styled.section`
@@ -48,7 +47,7 @@ const Article = styled.section`
   h2 {
     margin: 0 0 6px;
     font-size: 16px;
-    font-weight: 800;
+    font-weight: 700;
   }
   p {
     margin: 0;

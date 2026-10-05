@@ -16,8 +16,7 @@ const Form = styled.form`
 const Sent = styled.div`
   padding: 16px;
   border-radius: ${({ theme }) => theme.radius.md}px;
-  background: ${({ theme }) => theme.colors.surface};
-  border-left: 4px solid ${({ theme }) => theme.colors.sign};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   font-size: 15px;
   line-height: 1.6;
 `;

@@ -12,9 +12,15 @@ const Wrap = styled.div`
 `;
 
 const Icon = styled.div`
-  font-size: 30px;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
   line-height: 1;
-  margin-bottom: 4px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 

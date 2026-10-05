@@ -1,5 +1,6 @@
 // src/components/auth/AuthParts.jsx
 // 로그인 화면 공통 조각 — 할래말래 AuthPageHeader(뒤로 + 제목) 와 입력칸을 앞볼래 스타일로.
+// 카카오내비 톤: 흰 바탕, 회색 면 입력칸(포커스 때 파란 테두리), 밑줄 없는 회색 글자 링크.
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import styled, { keyframes } from "styled-components";
@@ -7,6 +8,7 @@ import { FiChevronLeft } from "react-icons/fi";
 
 export const AuthScreen = styled.main`
   min-height: 100%;
+  background: ${({ theme }) => theme.colors.surface};
   max-width: ${({ theme }) => theme.layout.maxWidth}px;
   margin: 0 auto;
   display: flex;
@@ -36,25 +38,25 @@ export function AuthHeader({ onBack }) {
   return (
     <Bar>
       <button type="button" aria-label="뒤로" onClick={onBack || (() => navigate(-1))}>
-        <FiChevronLeft size={26} />
+        <FiChevronLeft size={28} />
       </button>
     </Bar>
   );
 }
 
 export const AuthTitle = styled.h1`
-  margin: 8px 0 8px;
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.3;
-  letter-spacing: -0.035em;
+  margin: 12px 0 8px;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.03em;
 `;
 
 export const AuthLead = styled.p`
-  margin: 0 0 28px;
-  font-size: 15px;
+  margin: 0 0 32px;
+  font-size: 15.5px;
   line-height: 1.6;
-  color: ${({ theme }) => theme.colors.textNormal};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const FieldWrap = styled.label`
@@ -64,11 +66,11 @@ const FieldWrap = styled.label`
   margin-bottom: 18px;
   span {
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     color: ${({ theme }) => theme.colors.textNormal};
   }
   input {
-    height: 54px;
+    height: 56px;
     padding: 0 16px;
     border-radius: ${({ theme }) => theme.radius.md}px;
     border: 1.5px solid ${({ theme, $error }) => ($error ? theme.colors.danger : theme.colors.border)};
@@ -76,9 +78,15 @@ const FieldWrap = styled.label`
     font-size: 17px;
     font-weight: 600;
     outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  input::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
+    font-weight: 500;
   }
   input:focus {
-    border-color: ${({ theme }) => theme.colors.lane};
+    border-color: ${({ theme, $error }) => ($error ? theme.colors.danger : theme.colors.primary)};
+    background: ${({ theme }) => theme.colors.surface};
   }
   small {
     font-size: 13px;
@@ -98,13 +106,10 @@ export function Field({ label, hint, error, ...input }) {
 
 export const FormError = styled.p`
   margin: 0 0 12px;
-  padding: 12px 14px;
-  border-radius: ${({ theme }) => theme.radius.md}px;
-  background: ${({ theme }) => theme.colors.surface};
-  border-left: 4px solid ${({ theme }) => theme.colors.danger};
   font-size: 14px;
+  font-weight: 600;
   line-height: 1.5;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${({ theme }) => theme.colors.danger};
 `;
 
 export const TextLink = styled.button`
@@ -113,11 +118,9 @@ export const TextLink = styled.button`
   padding: 0 12px;
   border: none;
   background: transparent;
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.textWeak};
-  text-decoration: underline;
-  text-underline-offset: 3px;
 `;
 
 /** 앞볼래 로고(앱 아이콘과 같은 그림) — 스플래시·로그인·약관·가입 완료 화면 공통 */
@@ -126,7 +129,7 @@ const LogoImg = styled.img`
   width: ${({ $size }) => $size}px;
   height: ${({ $size }) => $size}px;
   border-radius: ${({ $size }) => Math.round($size * 0.24)}px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: ${({ theme }) => (theme.mode === "dark" ? "0 10px 30px rgba(0, 0, 0, 0.45)" : "0 8px 24px rgba(20, 24, 28, 0.18)")};
 `;
 
 export function BrandLogo({ size = 132 }) {
@@ -153,7 +156,7 @@ const Dim = styled.div`
     height: 32px;
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, 0.25);
-    border-top-color: ${({ theme }) => theme.colors.lane};
+    border-top-color: ${({ theme }) => theme.colors.primary};
     animation: ${spin} 0.8s linear infinite;
   }
 `;

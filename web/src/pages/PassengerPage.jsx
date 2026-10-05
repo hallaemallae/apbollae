@@ -2,8 +2,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { FiCheck, FiSmartphone, FiVolumeX } from "react-icons/fi";
+import { FiAlertTriangle, FiSmartphone, FiVolumeX } from "react-icons/fi";
 import Button from "../components/common/Button";
+import CheckCircle from "../components/common/CheckCircle";
 import { useFlow } from "../context/FlowContext";
 import { useScenario } from "../context/ScenarioContext";
 
@@ -14,21 +15,22 @@ export const Screen = styled.main`
   display: flex;
   flex-direction: column;
   padding: calc(env(safe-area-inset-top) + 48px) 20px calc(env(safe-area-inset-bottom) + 20px);
+  background: ${({ theme }) => theme.colors.surface};
 `;
 
 export const Title = styled.h1`
-  margin: 0 0 12px;
-  font-size: ${({ theme }) => theme.fontSizes.titleLg + 2}px;
-  font-weight: 800;
-  line-height: 1.3;
-  letter-spacing: -0.035em;
+  margin: 0 0 10px;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.03em;
 `;
 
 export const Lead = styled.p`
   margin: 0 0 28px;
-  font-size: 16px;
+  font-size: 15.5px;
   line-height: 1.6;
-  color: ${({ theme }) => theme.colors.textNormal};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 export const Bottom = styled.div`
@@ -44,41 +46,30 @@ const Check = styled.button`
   align-items: center;
   gap: 14px;
   width: 100%;
-  min-height: 68px;
+  min-height: 72px;
   padding: 0 18px;
-  border-radius: ${({ theme }) => theme.radius.md}px;
-  border: 2px solid ${({ theme, $on }) => ($on ? theme.colors.lane : theme.colors.border)};
+  border-radius: ${({ theme }) => theme.radius.lg}px;
+  border: 1.5px solid ${({ theme, $on }) => ($on ? theme.colors.primary : theme.colors.border)};
   background: ${({ theme }) => theme.colors.surface};
   font-size: 18px;
   font-weight: 700;
   text-align: left;
-`;
-
-const Box = styled.span`
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme, $on }) => ($on ? theme.colors.lane : "transparent")};
-  border: 2px solid ${({ theme, $on }) => ($on ? theme.colors.lane : theme.colors.textWeak)};
-  color: ${({ theme }) => theme.colors.laneText};
+  transition: background 0.15s ease, border-color 0.15s ease;
 `;
 
 const Rules = styled.ul`
   list-style: none;
-  margin: 24px 0 0;
-  padding: 0;
+  margin: 16px 0 0;
+  padding: 18px 2px 0;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
   display: flex;
   flex-direction: column;
   gap: 14px;
   li {
     display: flex;
     gap: 12px;
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: 14.5px;
+    line-height: 1.55;
     color: ${({ theme }) => theme.colors.textNormal};
   }
   svg {
@@ -97,10 +88,19 @@ const Hint = styled.p`
 
 const Stop = styled.div`
   margin: auto 0;
-  padding: 28px 22px;
-  border-radius: ${({ theme }) => theme.radius.lg}px;
-  background: ${({ theme }) => theme.colors.surface};
-  border-left: 6px solid ${({ theme }) => theme.colors.accident};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  > svg {
+    width: 64px;
+    height: 64px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border-radius: 50%;
+    background: ${({ theme }) => (theme.mode === "dark" ? "rgba(229, 72, 59, 0.18)" : "#FDEDEC")};
+    color: ${({ theme }) => theme.colors.accident};
+  }
 `;
 
 export default function PassengerPage() {
@@ -123,14 +123,17 @@ export default function PassengerPage() {
     return (
       <Screen>
         <Stop role="alert">
+          <FiAlertTriangle aria-hidden="true" />
           <Title>운전 중에는 쓸 수 없어요</Title>
-          <Lead style={{ marginBottom: 20 }}>
+          <Lead style={{ marginBottom: 0 }}>
             운전 중 영상 시청은 도로교통법 제49조 위반이에요. 동승자에게 휴대폰을 건네 주세요.
           </Lead>
+        </Stop>
+        <Bottom>
           <Button variant="secondary" fullWidth onClick={() => setDriving(false)}>
             동승자에게 건넸어요
           </Button>
-        </Stop>
+        </Bottom>
       </Screen>
     );
   }
@@ -141,9 +144,7 @@ export default function PassengerPage() {
       <Lead>앞볼래는 운전하지 않는 동승자를 위한 앱이에요. 확인해야 도로 영상이 재생돼요.</Lead>
 
       <Check type="button" role="checkbox" aria-checked={checked} $on={checked} onClick={() => setChecked((v) => !v)}>
-        <Box $on={checked} aria-hidden="true">
-          {checked ? <FiCheck size={20} strokeWidth={3.5} /> : null}
-        </Box>
+        <CheckCircle on={checked} size={28} />
         저는 조수석 동승자입니다
       </Check>
 

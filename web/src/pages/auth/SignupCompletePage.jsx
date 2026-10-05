@@ -17,15 +17,15 @@ const Center = styled.div`
   gap: 14px;
   h1 {
     margin: 18px 0 0;
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -0.035em;
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
   }
   p {
     margin: 0;
     font-size: 15.5px;
     line-height: 1.65;
-    color: ${({ theme }) => theme.colors.textNormal};
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
@@ -52,7 +52,7 @@ export default function SignupCompletePage() {
   return (
     <AuthScreen>
       <Center>
-        <BrandLogo size={144} />
+        <BrandLogo size={120} />
         <h1>가입을 마쳤어요</h1>
         <p>
           {user?.displayName}님, 반가워요.
