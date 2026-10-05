@@ -5,20 +5,26 @@
 //   주소: http://localhost:8787/api/its/around?lat=&lng=   (웹앱 개발 서버가 /api 를 여기로 넘긴다)
 //         http://localhost:8787/api/place?query=&lat=&lng=   카카오 장소 검색(목적지)
 //         http://localhost:8787/api/route?olat=&olng=&dlat=&dlng=&heading=   카카오모빌리티 자동차 길찾기
+//         http://localhost:8787/api/its/cctvs   전국 CCTV 가벼운 목록(지도 표시용 — 이름·좌표만, gzip). around 와 같은 100분 캐시
+//         http://localhost:8787/api/its/cctv?id=  CCTV 한 대(영상 주소 포함) — 지도에서 선별 밖 CCTV 를 눌렀을 때
+//         http://localhost:8787/api/links?tile=<ty>_<tx>   표준노드링크 타일(맵매칭용, ITS 호출 없음)
+//           타일은 server/nodelink/build-tiles.py 로 data/nodelink/tiles 에 만들어 둔다
 //
 // - 인증키는 server/.env 에서만 읽는다(커밋 안 됨). ITS_API_KEY(필수), KAKAO_REST_KEY(목적지·경로 기능용, 없으면 그 기능만 503)
-// - 캐시는 메모리(CCTV 30분·돌발 60초). 재시작하면 비워진다.
+// - 캐시는 메모리(CCTV 전국 100분·돌발 칸별 60초). 재시작하면 비워진다.
 // - 월 호출 수는 server/.its-usage.json 에 센다(커밋 안 됨). 한도(기본 900)에 닿으면 캐시만 돌려준다.
 //   ※ 다른 사람·다른 PC 의 호출은 여기 안 잡힌다 — ITS 마이페이지 사용량도 가끔 확인할 것.
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const zlib = require("node:zlib");
 const { inKorea, createLoaders, createAround } = require("./functions/itsCore");
 const { searchPlaces, getRoute } = require("./functions/kakaoCore");
 
 const PORT = Number(process.env.PROXY_PORT || 8787);
 const LIMIT = Number(process.env.ITS_MONTHLY_LIMIT || 900);
 const USAGE_FILE = path.join(__dirname, ".its-usage.json");
+const TILE_DIR = path.join(__dirname, "..", "data", "nodelink", "tiles");
 
 if (!process.env.ITS_API_KEY) {
   console.error("server/.env 에 ITS_API_KEY 가 없어요.");
@@ -61,6 +67,24 @@ http
 
     if (req.method !== "GET") return send(404, { error: "not_found" });
 
+    // 표준노드링크 타일 — gzip 파일을 그대로 흘려보낸다(브라우저가 푼다)
+    if (/\/links\/?$/.test(url.pathname)) {
+      const tile = url.searchParams.get("tile") || "";
+      if (!/^\d{1,4}_\d{1,4}$/.test(tile)) return send(400, { error: "bad_tile" });
+      const file = path.join(TILE_DIR, `${tile}.json.gz`);
+      if (!fs.existsSync(file)) {
+        // 바다·국외처럼 링크가 없는 칸이거나, 타일을 아직 안 만든 경우
+        return send(fs.existsSync(TILE_DIR) ? 200 : 503, fs.existsSync(TILE_DIR) ? { v: 1, links: [] } : { error: "no_nodelink_tiles" });
+      }
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Encoding": "gzip",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=86400",
+      });
+      return fs.createReadStream(file).pipe(res);
+    }
+
     // 목적지 검색·경로 — 카카오 REST 키가 있을 때만
     if (/\/(place|route)\/?$/.test(url.pathname)) {
       const key = process.env.KAKAO_REST_KEY;
@@ -86,6 +110,30 @@ http
       }
     }
 
+    if (/\/its\/cctvs?\/?$/.test(url.pathname)) {
+      try {
+        const data = await around.all();
+        if (url.pathname.replace(/\/$/, "").endsWith("/cctv")) {
+          const c = data.cctvs.find((x) => x.id === url.searchParams.get("id"));
+          return c ? send(200, { cctv: c, stale: data.stale }) : send(404, { error: "no_cctv" });
+        }
+        // 영상 주소를 빼면 3.5MB → 수백 KB. [이름, 위도, 경도] (id 는 앱이 같은 규칙으로 만든다)
+        const r5 = (n) => Math.round(n * 1e5) / 1e5;
+        const slim = { at: data.at, stale: data.stale, cctvs: data.cctvs.map((c) => [c.name, r5(c.lat), r5(c.lng), c.id]) };
+        const body = zlib.gzipSync(JSON.stringify(slim));
+        res.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Encoding": "gzip",
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-store",
+        });
+        console.log(`[api] 전국 CCTV ${data.cctvs.length}개 · ${Math.round(body.length / 1024)}KB${data.stale ? " (stale)" : ""}`);
+        return res.end(body);
+      } catch (err) {
+        return send(503, { error: err.message === "QUOTA_EXCEEDED" ? "quota_exceeded" : "its_unavailable" });
+      }
+    }
+
     if (!/\/its\/around\/?$/.test(url.pathname)) return send(404, { error: "not_found" });
     const lat = Number(url.searchParams.get("lat"));
     const lng = Number(url.searchParams.get("lng"));
@@ -102,5 +150,6 @@ http
   .listen(PORT, () => {
     const used = readUsage()[monthKey()] || 0;
     console.log(`앞볼래 로컬 프록시: http://localhost:${PORT}/api/its/around  (이번 달 ITS 호출 ${used}/${LIMIT})`);
+    console.log(`  표준노드링크 타일: ${fs.existsSync(TILE_DIR) ? "있음" : "없음 — python server/nodelink/build-tiles.py"}`);
     console.log(`  목적지·경로(카카오): ${process.env.KAKAO_REST_KEY ? "켜짐" : "꺼짐 — server/.env 에 KAKAO_REST_KEY 없음"}`);
   });

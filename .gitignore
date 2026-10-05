@@ -12,3 +12,6 @@ dist/
 
 # 로컬 프록시 ITS 사용량 기록
 server/.its-usage.json
+
+# 표준노드링크 원본(수백 MB) — 각자 ITS 에서 받는다
+data/nodelink/

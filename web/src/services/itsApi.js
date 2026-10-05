@@ -57,3 +57,39 @@ export async function fetchAround(position, { apiDown = false, data = "mock" } =
   };
   return { ...lastGood, stale: false };
 }
+
+/* ── 전국 CCTV(지도 표시용) ───────────────────────
+ * 프록시가 전국 목록을 100분 캐시해 이름·좌표만 가볍게 준다(약 300KB). 영상 주소는 누를 때 한 대씩 받는다.
+ */
+const NATION_TTL_MS = 30 * 60 * 1000;
+let nation = { at: 0, data: null, list: null, pending: null };
+
+/** @returns {Promise<Array<{id,name,lat,lng}>>} */
+export async function fetchNationCctvs({ data = "mock" } = {}) {
+  if (data !== "live") return MOCK_CCTVS;
+  if (nation.list && nation.data === data && Date.now() - nation.at < NATION_TTL_MS) return nation.list;
+  if (nation.pending) return nation.pending;
+  nation.pending = fetch("/api/its/cctvs", { cache: "no-store" })
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then((j) => {
+      const list = j.cctvs.map(([name, lat, lng, id]) => ({ id, name, lat, lng }));
+      nation = { at: Date.now(), data, list, pending: null };
+      return list;
+    })
+    .catch((e) => {
+      nation.pending = null;
+      throw e;
+    });
+  return nation.pending;
+}
+
+/** CCTV 한 대(영상 주소 포함) — 지도에서 선별 밖 CCTV 를 눌렀을 때 */
+export async function fetchCctv(id, { data = "mock" } = {}) {
+  if (data !== "live") return MOCK_CCTVS.find((c) => c.id === id) || null;
+  const res = await fetch(`/api/its/cctv?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()).cctv;
+}

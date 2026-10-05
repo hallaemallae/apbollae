@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useBridge } from "../context/WebviewBridgeContext";
 import { useScenario } from "../context/ScenarioContext";
-import { step } from "../services/simulator";
+import { step, stepTrip } from "../services/simulator";
 import { resolveHeading } from "../utils/heading";
 
 const TRAIL_MAX = 120;
@@ -34,6 +34,7 @@ export default function useLocationStream(active) {
     // 1초마다 상태를 확정한다(새 점이 없으면 신호 끊김 판정)
     const tick = () => {
       if (scenario.source === "sim" && !tunnelRef.current) push(step(1, speedRef.current));
+      if (scenario.source === "trip" && !tunnelRef.current) push(stepTrip(1, speedRef.current));
       const signalLost = tunnelRef.current || Date.now() - lastFixAtRef.current > SIGNAL_LOST_MS;
       const h = resolveHeading(trailRef.current, lastValidRef.current, signalLost);
       if (h.heading != null && h.source !== "hold") lastValidRef.current = { heading: h.heading };

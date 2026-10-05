@@ -2,7 +2,7 @@
 // 가까운 순 CCTV 목록(F-04) — 도로 노선도(스트립맵)처럼 "현재 위치"에서 아래로 앞쪽 지점을 잇는다.
 // 카드를 누르면 그 CCTV 로 영상이 바뀐다(흐름 8단계: 정체 범위 확인).
 import React from "react";
-import styled, { css } from "styled-components";
+import styled from "styled-components";
 import { formatDistance } from "../../utils/aheadFilter";
 import { EVENT_LABEL } from "../../mock/events";
 import { TRAFFIC_LABEL } from "../../utils/routeFilter";
@@ -68,11 +68,6 @@ const Stop = styled.button`
   text-align: left;
   color: ${({ theme }) => theme.colors.textStrong};
 
-  ${({ $active, theme }) =>
-    $active &&
-    css`
-      background: ${theme.mode === "dark" ? "rgba(242, 183, 5, 0.09)" : "rgba(217, 163, 0, 0.1)"};
-    `}
 `;
 
 const Node = styled.span`

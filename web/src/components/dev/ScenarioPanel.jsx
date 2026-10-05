@@ -8,7 +8,7 @@ import { FiSliders, FiX } from "react-icons/fi";
 import { useScenario } from "../../context/ScenarioContext";
 import { useFlow } from "../../context/FlowContext";
 import { useAuth } from "../../context/AuthContext";
-import { SPEED_PRESETS, teleport } from "../../services/simulator";
+import { SPEED_PRESETS, teleport, resetTrip, jumpTrip, TRIP_START } from "../../services/simulator";
 import { NO_CCTV_INDEX } from "../../mock/route";
 
 const LOGIN_STEPS = [
@@ -233,12 +233,22 @@ export default function ScenarioPanel() {
         <Chip type="button" $on={scenario.source === "sim"} onClick={() => set({ source: "sim" })}>
           시뮬레이션 주행
         </Chip>
+        <Chip
+          type="button"
+          $on={scenario.source === "trip"}
+          onClick={() => {
+            resetTrip();
+            set({ source: "trip" });
+          }}
+        >
+          경로 주행({TRIP_START.label} 출발)
+        </Chip>
         <Chip type="button" $on={scenario.source === "device"} onClick={() => set({ source: "device" })}>
           실제 GPS
         </Chip>
       </Chips>
 
-      {scenario.source === "sim" ? (
+      {scenario.source === "sim" || scenario.source === "trip" ? (
         <>
           <Label>주행 속도</Label>
           <Chips>
@@ -248,6 +258,27 @@ export default function ScenarioPanel() {
               </Chip>
             ))}
           </Chips>
+        </>
+      ) : null}
+
+      {scenario.source === "trip" ? (
+        <>
+          <Label>경로 구간으로 건너뛰기 (목적지를 넣은 뒤)</Label>
+          <Chips>
+            {[0, 0.1, 0.25, 0.5, 0.75, 0.97].map((f) => (
+              <Chip key={f} type="button" onClick={() => jumpTrip(f)}>
+                {f === 0 ? "출발" : f === 0.97 ? "도착 직전" : `${Math.round(f * 100)}%`}
+              </Chip>
+            ))}
+            <Chip type="button" onClick={resetTrip}>
+              출발지로 되돌리기
+            </Chip>
+          </Chips>
+        </>
+      ) : null}
+
+      {scenario.source === "sim" ? (
+        <>
           <Label>이동</Label>
           <Chips>
             {JUMPS.map(([idx, label]) => (

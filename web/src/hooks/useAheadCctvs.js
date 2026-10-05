@@ -11,22 +11,25 @@ import { attachEventsAlong, selectAlongRoute } from "../utils/routeFilter";
 const EMPTY = { selected: [], all: [], events: [], eventsByCctv: {}, refreshedAt: 0, refreshedPos: null, stale: false, error: null, mode: null };
 
 /**
- * @param {{ fix, heading, road, nav }} input
- *   road: { names, downBearing } | null (모르면 2차 필터 중 도로 비교 생략)
- *   nav : useRoute() 결과 — 경로가 준비돼 있으면 경로 기준으로 고른다
+ * @param {{ fix, heading, road, nav, roadPath }} input
+ *   road    : { names, downBearing } | null (모르면 2차 필터 중 도로 비교 생략)
+ *   nav     : useRoute() 결과 — 경로가 준비돼 있으면 경로 기준으로 고른다
+ *   roadPath: useRoadMatch() 의 예상 경로 — 목적지가 없을 때 "내 도로 앞쪽"으로 고른다
  */
-export default function useAheadCctvs({ fix, heading, road, nav }) {
+export default function useAheadCctvs({ fix, heading, road, nav, roadPath = null }) {
   const { scenario } = useScenario();
   const [state, setState] = useState(EMPTY);
   const busyRef = useRef(false);
   const genRef = useRef(0); // 데이터 출처가 바뀐 뒤 도착한 이전 응답은 버린다
 
   const ready = !!fix;
-  // route: 목적지 경로 기준 | ahead: 진행 방향 기준 전방 부채꼴 | nearby: 방향을 몰라 사방 5km
+  // route: 목적지 경로 기준 | road: 맵매칭한 내 도로를 따라 앞쪽 | ahead: 진행 방향 기준 전방 부채꼴 | nearby: 방향을 몰라 사방 5km
   const routeObj = nav?.route || null;
-  const mode = routeObj ? "route" : heading == null ? "nearby" : "ahead";
+  const mode = routeObj ? "route" : heading == null ? "nearby" : roadPath ? "road" : "ahead";
   const navRef = useRef(nav);
   navRef.current = nav;
+  const pathRef = useRef(roadPath);
+  pathRef.current = roadPath;
 
   // 목업 ↔ 실제 데이터를 바꾸면 다음 틱에 곧바로 다시 받는다
   useEffect(() => {
@@ -52,12 +55,15 @@ export default function useAheadCctvs({ fix, heading, road, nav }) {
         if (gen !== genRef.current) return;
         const n = navRef.current;
         const useRouteNow = mode === "route" && n?.route;
-        const { selected, all } = useRouteNow ? selectAlongRoute(res.cctvs, n.route, n.s0, ctx.direction) : selectAhead(res.cctvs, ctx);
+        // 예상 경로는 받은 시점의 내 위치에서 시작한다(s0 = 0)
+        const path = mode === "road" ? pathRef.current : null;
+        const line = useRouteNow ? { route: n.route, s0: n.s0 } : path ? { route: path, s0: 0 } : null;
+        const { selected, all } = line ? selectAlongRoute(res.cctvs, line.route, line.s0, ctx.direction) : selectAhead(res.cctvs, ctx);
         setState({
           selected,
           all,
           events: res.events,
-          eventsByCctv: useRouteNow ? attachEventsAlong(res.events, selected, n.route, n.s0, ctx.direction) : attachEvents(res.events, selected, ctx),
+          eventsByCctv: line ? attachEventsAlong(res.events, selected, line.route, line.s0, ctx.direction) : attachEvents(res.events, selected, ctx),
           refreshedAt: Date.now(),
           refreshedPos: position,
           stale: res.stale,

@@ -7,6 +7,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import Hls from "hls.js";
+import { FiVideoOff } from "react-icons/fi";
 import MockFeed from "./MockFeed";
 
 const CONNECT_MS = 900;
@@ -97,6 +98,25 @@ const Layer = styled.div`
   padding: 0 24px;
 `;
 
+// 앞쪽 CCTV 없음(E4) 안내 — 영상 칸 안에 그린다
+const Empty = styled(Layer)`
+  gap: 6px;
+  color: #9aa1a6;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  white-space: pre-line;
+  > svg {
+    margin-bottom: 4px;
+    color: #6f777d;
+  }
+  b {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e7e9e6;
+  }
+`;
+
 const spin = keyframes`to { transform: rotate(360deg); }`;
 const Ring = styled.div`
   width: 30px;
@@ -176,7 +196,8 @@ function useClock() {
 
 const pad = (n) => String(n).padStart(2, "0");
 
-export default function CctvPlayer({ cctv, willFail, blocked, onError }) {
+/** empty: 재생할 CCTV 가 없을 때 영상 칸에 띄울 안내 { title, sub } (없으면 기본 문구) */
+export default function CctvPlayer({ cctv, willFail, blocked, onError, empty }) {
   const [phase, setPhase] = useState("connecting"); // connecting | playing | failed
   const now = useClock();
 
@@ -227,7 +248,14 @@ export default function CctvPlayer({ cctv, willFail, blocked, onError }) {
         </Layer>
       )}
 
-      {!cctv && <Layer style={{ color: "#9AA1A6" }}>재생할 CCTV가 없어요</Layer>}
+      {!cctv && empty ? (
+        <Empty role="status">
+          <FiVideoOff size={28} aria-hidden="true" />
+          <b>{empty.title}</b>
+          {empty.sub}
+        </Empty>
+      ) : null}
+      {!cctv && !empty && <Layer style={{ color: "#9AA1A6" }}>재생할 CCTV가 없어요</Layer>}
 
       {cctv && (
         <>

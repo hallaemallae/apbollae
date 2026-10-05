@@ -6,8 +6,11 @@
 const ITS_BASE = "https://openapi.its.go.kr:9443";
 const CELL = 0.1; // 격자 한 칸 ≈ 11km
 const MARGIN = 0.06; // 칸 가장자리에서도 앞 5km 가 들어오도록 조회 범위를 넓힌다
-const TTL = { cctv: 30 * 60 * 1000, event: 60 * 1000 }; // 영상 주소는 120분 유효
-const CALLS = { cctv: 2, event: 1 };
+// CCTV 목록은 전국을 한 번에 받는다(칸 하나와 호출 수가 같다 — ex·its 2건). 영상 주소는 120분 유효라 100분 캐시.
+// 돌발은 칸 단위로 1분 캐시.
+const TTL = { cctvAll: 100 * 60 * 1000, event: 60 * 1000 };
+const CALLS = { cctvAll: 2, event: 1 };
+const NATION = { key: "KR", box: "minX=124.5&maxX=131.95&minY=33.0&maxY=38.7" };
 const RETRY_AFTER_MS = 60 * 1000; // 실패하면 이 시간 동안 같은 칸을 다시 부르지 않는다(월 한도 보호)
 
 /** ITS 는 결과가 1건이면 배열 대신 객체 하나를 주기도 한다 */
@@ -101,7 +104,7 @@ function createLoaders({ apiKey, countCall }) {
 
   return {
     // 고속도로(ex) + 국도(its), HTTPS·HLS 실시간(cctvType=4)
-    cctv: async (box) => {
+    cctvAll: async (box) => {
       const [ex, its] = await Promise.all([itsGet(`cctvInfo?type=ex&cctvType=4&${box}`), itsGet(`cctvInfo?type=its&cctvType=4&${box}`)]);
       const list = [...toArray(ex?.response?.data), ...toArray(its?.response?.data)];
       return list.map(normCctv).filter((c) => c.url && Number.isFinite(c.lat) && Number.isFinite(c.lng));
@@ -149,11 +152,25 @@ function createAround({ loaders, store, usage, limit, log = console }) {
     }
   }
 
-  return async function around(lat, lng) {
+  /** 칸 조회 범위(box 문자열) 안의 CCTV 만 */
+  function inBox(items, box) {
+    const q = Object.fromEntries(box.split("&").map((kv) => kv.split("=")).map(([k, v]) => [k, Number(v)]));
+    return items.filter((c) => c.lng >= q.minX && c.lng <= q.maxX && c.lat >= q.minY && c.lat <= q.maxY);
+  }
+
+  async function around(lat, lng) {
     const cell = cellOf(lat, lng);
-    const [c, e] = await Promise.all([cached("cctv", cell), cached("event", cell)]);
-    return { cctvs: c.items, events: e.items, at: Math.min(c.at, e.at), stale: c.stale || e.stale };
+    const [c, e] = await Promise.all([cached("cctvAll", NATION), cached("event", cell)]);
+    return { cctvs: inBox(c.items, cell.box), events: e.items, at: Math.min(c.at, e.at), stale: c.stale || e.stale };
+  }
+
+  /** 전국 CCTV(지도 표시용) — around 와 같은 캐시를 쓴다 */
+  around.all = async () => {
+    const c = await cached("cctvAll", NATION);
+    return { cctvs: c.items, at: c.at, stale: c.stale };
   };
+
+  return around;
 }
 
 module.exports = { cellOf, inKorea, normCctv, normEvent, createLoaders, createAround, TTL, CALLS };
