@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
+    "prebuild": "node scripts/build-oss-licenses.mjs",
+    "build-oss-licenses": "node scripts/build-oss-licenses.mjs",
     "preview": "vite preview --host",
     "proxy": "node --env-file=../server/.env.kakao --env-file-if-exists=../server/.env ../server/dev-proxy.cjs"
   },

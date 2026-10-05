@@ -104,6 +104,7 @@ export const DOMAINS = [
       { id: "terms", no: "4-2", name: "이용약관", path: "/terms", spec: ["초안 — 출시 전 법률 검토"] },
       { id: "privacy", no: "4-3", name: "개인정보 처리방침", path: "/privacy", spec: ["초안 — 출시 전 법률 검토"] },
       { id: "location-terms", no: "4-4", name: "위치기반서비스 약관", path: "/location-terms", spec: ["초안 — 출시 전 법률 검토"] },
+      { id: "licenses", no: "4-5", name: "오픈소스 라이선스", path: "/licenses", spec: ["★public/oss-licenses.json 자동 생성(npm run build-oss-licenses) — 항목을 누르면 전문"] },
     ],
   },
 ];

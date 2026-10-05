@@ -24,6 +24,7 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import AgreementGate from "./pages/auth/AgreementGate";
 import SignupCompletePage from "./pages/auth/SignupCompletePage";
 import LegalPage from "./pages/legal/LegalPage";
+import OssLicensesPage from "./pages/legal/OssLicensesPage";
 import { IN_REVIEW_FRAME, REVIEW_FREEZE } from "./dev/reviewMock";
 
 // 개발용 화면 리뷰 허브 — 할래말래 /review 를 옮겨 왔다. 출시 빌드에는 들어가지 않는다.
@@ -83,6 +84,7 @@ function ThemedApp() {
               <Route path="/terms" element={<LegalPage doc="terms" />} />
               <Route path="/privacy" element={<LegalPage doc="privacy" />} />
               <Route path="/location-terms" element={<LegalPage doc="location" />} />
+              <Route path="/licenses" element={<OssLicensesPage />} />
               <Route
                 path="/confirm"
                 element={

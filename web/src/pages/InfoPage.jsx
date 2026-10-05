@@ -14,20 +14,6 @@ import { showToast } from "../utils/toast";
 
 const APP_VERSION = "0.1.0";
 
-// 실제로 쓰는 것만 — 웹앱(web/package.json)·RN 셸·서체
-const OSS = [
-  ["React · React DOM · React Router", "MIT"],
-  ["styled-components", "MIT"],
-  ["React Icons (Feather)", "MIT"],
-  ["Turf.js", "MIT"],
-  ["hls.js", "Apache-2.0"],
-  ["Firebase JS SDK", "Apache-2.0"],
-  ["React Native · react-native-webview", "MIT"],
-  ["@react-native-community/geolocation", "MIT"],
-  ["Pretendard", "OFL-1.1"],
-  ["Barlow Semi Condensed", "OFL-1.1"],
-];
-
 // 데이터 출처 — 각 기관 이용조건에 따라 출처를 밝힌다
 const SOURCES = [
   ["CCTV 영상 · 돌발상황", "국가교통정보센터(ITS)"],
@@ -385,16 +371,11 @@ export default function InfoPage() {
             <span>위치기반서비스 이용약관</span>
             <FiChevronRight size={20} />
           </Item>
-          <Fold title="오픈소스 라이선스" open={open === "oss"} onToggle={() => toggle("oss")}>
-            <Pairs>
-              {OSS.map(([lib, lic]) => (
-                <React.Fragment key={lib}>
-                  <dt>{lib}</dt>
-                  <dd>{lic}</dd>
-                </React.Fragment>
-              ))}
-            </Pairs>
-          </Fold>
+          {/* 할래말래처럼 새 화면에서 전체 목록·라이선스 전문을 고지한다(scripts/build-oss-licenses.mjs) */}
+          <Item type="button" onClick={() => navigate("/licenses")}>
+            <span>오픈소스 라이선스</span>
+            <FiChevronRight size={20} />
+          </Item>
         </List>
       </Section>
 
