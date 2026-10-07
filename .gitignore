@@ -14,7 +14,7 @@ dist/
 server/.its-usage.json
 
 # UTIC CCTV 목록 저장본(학교 망에서 받음, 원본에 접속 정보가 들어 있을 수 있다)
-server/.utic-cctvs.json
+server/.utic-*
 
 # 표준노드링크 원본(수백 MB) — 각자 ITS 에서 받는다
 data/nodelink/

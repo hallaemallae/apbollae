@@ -20,6 +20,7 @@ export default function useRoute(fix, heading) {
   const [error, setError] = useState(null);
   const lastFetchRef = useRef(0);
   const busyRef = useRef(false);
+  const genRef = useRef(0); // 목적지가 바뀐(취소된) 뒤 도착한 이전 경로 응답은 버린다
   const fixRef = useRef(fix);
   fixRef.current = fix;
   const headingRef = useRef(heading);
@@ -29,27 +30,32 @@ export default function useRoute(fix, heading) {
     const from = fixRef.current;
     if (!destination || !from || busyRef.current) return;
     busyRef.current = true;
+    const gen = genRef.current;
     lastFetchRef.current = Date.now();
     setStatus((s) => (s === "ready" ? s : "loading"));
-    fetchRoute(from, destination, headingRef.current, { data: scenario.data })
+    fetchRoute(from, destination, headingRef.current, { data: scenario.data, opt: destination.opt || "recommend" })
       .then((raw) => {
+        if (gen !== genRef.current) return;
         setRoute(buildRoute(raw));
         setStatus("ready");
         setError(null);
         if (reason === "reroute") showToast("경로를 벗어나 새 경로로 다시 골랐어요");
       })
       .catch((e) => {
+        if (gen !== genRef.current) return;
         setError(e.code || e.message);
         setStatus("error");
       })
       .finally(() => {
-        busyRef.current = false;
+        if (gen === genRef.current) busyRef.current = false;
       });
   };
 
   // 목적지가 바뀌면(또는 위치가 처음 잡히면) 경로를 받는다
   const hasFix = !!fix;
   useEffect(() => {
+    genRef.current += 1;
+    busyRef.current = false;
     setRoute(null);
     setError(null);
     setStatus(destination ? "loading" : "idle");
@@ -71,7 +77,9 @@ export default function useRoute(fix, heading) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [here]);
 
-  const ready = status === "ready" && !!route && !!here;
+  // 목적지를 취소하면 destination 은 바로 null 이 되지만 route 는 다음 effect 에서야 지워진다.
+  // 그 사이 한 번의 렌더에서 "경로는 있는데 목적지는 없는" 상태가 되지 않게 목적지도 함께 본다.
+  const ready = !!destination && status === "ready" && !!route && !!here;
   return {
     destination,
     status,

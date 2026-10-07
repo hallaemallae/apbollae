@@ -4,7 +4,7 @@
 //   실행: cd web && npm run proxy   (= node --env-file=../server/.env.kakao --env-file-if-exists=../server/.env ../server/dev-proxy.cjs)
 //   주소: http://localhost:8787/api/its/around?lat=&lng=   (웹앱 개발 서버가 /api 를 여기로 넘긴다)
 //         http://localhost:8787/api/place?query=&lat=&lng=   카카오 장소 검색(목적지)
-//         http://localhost:8787/api/route?olat=&olng=&dlat=&dlng=&heading=   카카오모빌리티 자동차 길찾기
+//         http://localhost:8787/api/route?olat=&olng=&dlat=&dlng=&heading=&opt=   카카오모빌리티 자동차 길찾기(opt: recommend|time|free)
 //         http://localhost:8787/api/its/cctvs   전국 CCTV 가벼운 목록(지도 표시용 — 이름·좌표만, gzip). around 와 같은 100분 캐시
 //         http://localhost:8787/api/its/cctv?id=  CCTV 한 대(영상 주소 포함) — 지도에서 선별 밖 CCTV 를 눌렀을 때
 //           ↑ 세 주소 모두 UTIC_API_KEY 가 있으면 경찰청 UTIC 도시 CCTV 를 섞는다(source: "utic", 하루 1회 받아 server/.utic-cctvs.json 에 저장)
@@ -115,8 +115,9 @@ http
         const origin = { lat: n("olat"), lng: n("olng") };
         const destination = { lat: n("dlat"), lng: n("dlng") };
         if (!inKorea(origin.lat, origin.lng) || !inKorea(destination.lat, destination.lng)) return send(400, { error: "bad_position" });
-        const route = await getRoute(key, { origin, destination, heading: n("heading") });
-        console.log(`[route] ${(route.distance / 1000).toFixed(1)}km · 도로 ${route.roads.length}구간`);
+        const opt = url.searchParams.get("opt") || "recommend";
+        const route = await getRoute(key, { origin, destination, heading: n("heading"), opt });
+        console.log(`[route:${opt}] ${(route.distance / 1000).toFixed(1)}km · 도로 ${route.roads.length}구간`);
         return send(200, route);
       } catch (err) {
         console.error("[kakao]", err.message);

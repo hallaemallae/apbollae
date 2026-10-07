@@ -2,7 +2,7 @@
 // F-03 선별 + F-04 자동 갱신 + F-05 돌발 배지 + E4/E6.
 // 30초가 지나거나 500m 이동하면(먼저 오는 쪽) ITS 목록을 다시 받아 재선별한다.
 // 지나친 CCTV 는 재선별 때 부채꼴 밖(behind)으로 분류돼 자연히 빠진다.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchAround } from "../services/itsApi";
 import { useScenario } from "../context/ScenarioContext";
 import { AHEAD, attachEvents, distanceKm, selectAhead, travelDirection } from "../utils/aheadFilter";
@@ -20,6 +20,9 @@ export default function useAheadCctvs({ fix, heading, road, nav, roadPath = null
   const { scenario } = useScenario();
   const [state, setState] = useState(EMPTY);
   const busyRef = useRef(false);
+  // refresh() — 30초·500m 를 기다리지 않고 바로 다시 고른다(CCTV 를 지나쳤을 때)
+  const [kick, setKick] = useState(0);
+  const doneKickRef = useRef(0);
   const genRef = useRef(0); // 데이터 출처가 바뀐 뒤 도착한 이전 응답은 버린다
 
   const ready = !!fix;
@@ -43,9 +46,11 @@ export default function useAheadCctvs({ fix, heading, road, nav, roadPath = null
     const elapsed = Date.now() - state.refreshedAt;
     const moved = state.refreshedPos ? distanceKm(state.refreshedPos, fix) : Infinity;
     const sameRoute = state.routeRef === routeObj;
-    if (state.refreshedAt && state.mode === mode && sameRoute && elapsed < AHEAD.refreshMs && moved < AHEAD.refreshKm) return;
+    const forced = kick !== doneKickRef.current;
+    if (!forced && state.refreshedAt && state.mode === mode && sameRoute && elapsed < AHEAD.refreshMs && moved < AHEAD.refreshKm) return;
 
     busyRef.current = true;
+    doneKickRef.current = kick;
     const gen = genRef.current;
     const position = { lat: fix.lat, lng: fix.lng };
     const ctx = { position, heading, roadNames: road?.names, direction: travelDirection(heading, road) };
@@ -80,11 +85,13 @@ export default function useAheadCctvs({ fix, heading, road, nav, roadPath = null
       .finally(() => {
         if (gen === genRef.current) busyRef.current = false;
       });
-  }, [ready, mode, routeObj, fix, heading, road, scenario.apiDown, scenario.data, state.refreshedAt, state.refreshedPos, state.mode, state.routeRef]);
+  }, [ready, mode, routeObj, fix, heading, road, scenario.apiDown, scenario.data, state.refreshedAt, state.refreshedPos, state.mode, state.routeRef, kick]);
 
   const secondsLeft = state.refreshedAt ? Math.max(0, Math.ceil((AHEAD.refreshMs - (Date.now() - state.refreshedAt)) / 1000)) : null;
   const metersLeft =
     state.refreshedPos && fix ? Math.max(0, Math.round((AHEAD.refreshKm - distanceKm(state.refreshedPos, fix)) * 1000)) : null;
 
-  return { ...state, secondsLeft, metersLeft, loading: !state.refreshedAt };
+  const refresh = useCallback(() => setKick((k) => k + 1), []);
+
+  return { ...state, secondsLeft, metersLeft, loading: !state.refreshedAt, refresh };
 }

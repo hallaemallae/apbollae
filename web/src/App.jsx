@@ -15,8 +15,10 @@ import ScenarioPanel from "./components/dev/ScenarioPanel";
 import SplashPage from "./pages/SplashPage";
 import PassengerPage from "./pages/PassengerPage";
 import PermissionPage from "./pages/PermissionPage";
-import DrivePage from "./pages/DrivePage";
 import InfoPage from "./pages/InfoPage";
+import TabLayout from "./components/common/TabLayout";
+import MainTabs from "./components/common/MainTabs";
+import { DriveDataProvider } from "./context/DriveDataContext";
 import LoginPage from "./pages/auth/LoginPage";
 import EmailLoginPage from "./pages/auth/EmailLoginPage";
 import EmailSignupPage from "./pages/auth/EmailSignupPage";
@@ -61,18 +63,40 @@ function RequirePassenger({ children }) {
   return passenger ? <RequireEntry>{children}</RequireEntry> : <Navigate to="/confirm" replace />;
 }
 
+/**
+ * 탭 화면(홈·앞길·기록·내 정보) — 네 경로가 모두 이 컴포넌트를 쓰므로 탭을 옮겨도 MainTabs 가 다시 만들어지지 않는다.
+ * 내 정보는 주행 전(동승자 확인 전)에도 열 수 있어 그때는 탭 틀만 씌운다.
+ */
+function TabsRoute() {
+  const { passenger, permission } = useFlow();
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/info") && !(passenger && permission === "granted")) {
+    return (
+      <TabLayout>
+        <InfoPage />
+      </TabLayout>
+    );
+  }
+  return (
+    <RequireReady>
+      <MainTabs />
+    </RequireReady>
+  );
+}
+
 function ThemedApp() {
-  const { mode } = useThemeMode();
+  const { resolved } = useThemeMode();
   // 리뷰 허브의 "고정" 프레임 — 페이지가 navigate() 해도 처음 연 화면을 계속 그린다
   const location = useLocation();
   const entryLocation = useRef(location).current;
   return (
-    <ThemeProvider theme={mode === "light" ? lightTheme : darkTheme}>
+    <ThemeProvider theme={resolved === "light" ? lightTheme : darkTheme}>
       <GlobalStyle />
       <WebviewBridgeProvider>
         <ScenarioProvider>
           <AuthProvider>
           <FlowProvider>
+          <DriveDataProvider>
             <BridgeNavSync />
             <OfflineBanner />
             <Routes location={REVIEW_FREEZE ? entryLocation : location}>
@@ -101,19 +125,15 @@ function ThemedApp() {
                   </RequirePassenger>
                 }
               />
-              <Route
-                path="/drive"
-                element={
-                  <RequireReady>
-                    <DrivePage />
-                  </RequireReady>
-                }
-              />
-              <Route path="/info" element={<InfoPage />} />
+              <Route path="/drive" element={<TabsRoute />} />
+              <Route path="/ahead" element={<TabsRoute />} />
+              <Route path="/log" element={<TabsRoute />} />
+              <Route path="/info" element={<TabsRoute />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <Toast />
             {SHOW_DEV ? <ScenarioPanel /> : null}
+          </DriveDataProvider>
           </FlowProvider>
           </AuthProvider>
         </ScenarioProvider>

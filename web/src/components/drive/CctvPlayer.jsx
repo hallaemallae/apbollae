@@ -25,12 +25,12 @@ const Video = styled.video`
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: ${({ $contain }) => ($contain ? "contain" : "cover")};
   background: #0e1012;
 `;
 
 /** 실제 CCTV HLS 재생. 첫 프레임이 나오면 onPlaying, 치명적 오류·시간 초과면 onFail */
-function LiveVideo({ url, onPlaying, onFail }) {
+function LiveVideo({ url, onPlaying, onFail, contain }) {
   const ref = useRef(null);
   const cb = useRef({ onPlaying, onFail });
   cb.current = { onPlaying, onFail };
@@ -79,13 +79,16 @@ function LiveVideo({ url, onPlaying, onFail }) {
   }, [url]);
 
   // 음성 없음(운전자 주의 분산 방지) · 인라인 재생 · 자동 재생
-  return <Video ref={ref} muted playsInline autoPlay aria-label="CCTV 실시간 영상" />;
+  // crossOrigin: Safari(네이티브 HLS)에서도 장면 공유(캔버스로 옮겨 그리기)가 되게
+  return <Video ref={ref} $contain={contain} muted playsInline autoPlay crossOrigin="anonymous" aria-label="CCTV 실시간 영상" />;
 }
 
 const Frame = styled.div`
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  /* 전체 화면에서는 부모(화면)를 채우고 영상은 잘리지 않게 contain */
+  /* 일반 화면은 4:3 — ITS CCTV 원본 대부분이 4:3(640×480)이라 위아래로 더 크게, 덜 잘린다 */
+  ${({ $full }) => ($full ? "height: 100%;" : "aspect-ratio: 4 / 3;")}
   background: #0E1012;
   overflow: hidden;
 `;
@@ -184,7 +187,7 @@ const Bottom = styled.div`
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding: 18px 12px 8px;
+  padding: 18px ${({ $reserveRight }) => ($reserveRight ? 96 : 12)}px 8px 12px;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.5));
   color: rgba(255, 255, 255, 0.85);
   font-size: 11px;
@@ -204,8 +207,12 @@ function useClock() {
 
 const pad = (n) => String(n).padStart(2, "0");
 
-/** empty: 재생할 CCTV 가 없을 때 영상 칸에 띄울 안내 { title, sub } (없으면 기본 문구) */
-export default function CctvPlayer({ cctv, willFail, blocked, onError, empty }) {
+/**
+ * empty: 재생할 CCTV 가 없을 때 영상 칸에 띄울 안내 { title, sub } (없으면 기본 문구)
+ * full : 전체 화면(가로 모드·영상 탭) — 화면을 채우고 영상을 자르지 않는다
+ * reserveRight: 오른쪽 아래에 부모가 띄운 버튼(전체 화면) 자리를 비운다
+ */
+export default function CctvPlayer({ cctv, willFail, blocked, onError, empty, full = false, reserveRight = false }) {
   const [phase, setPhase] = useState("connecting"); // connecting | playing | failed
   const now = useClock();
 
@@ -228,11 +235,12 @@ export default function CctvPlayer({ cctv, willFail, blocked, onError, empty }) 
   }, [cctv?.id, willFail, live]);
 
   return (
-    <Frame>
+    <Frame $full={full}>
       {cctv && live && phase !== "failed" && (
         <LiveVideo
           key={cctv.id}
           url={cctv.url}
+          contain={full}
           onPlaying={() => setPhase("playing")}
           onFail={() => {
             setPhase("failed");
@@ -271,7 +279,7 @@ export default function CctvPlayer({ cctv, willFail, blocked, onError, empty }) 
             <Name>{cctv.name}</Name>
             {phase === "playing" && <Live>실시간</Live>}
           </Top>
-          <Bottom>
+          <Bottom $reserveRight={reserveRight}>
             <span>
               {now.getFullYear()}-{pad(now.getMonth() + 1)}-{pad(now.getDate())} {pad(now.getHours())}:
               {pad(now.getMinutes())}:{pad(now.getSeconds())}

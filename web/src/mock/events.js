@@ -15,6 +15,7 @@ export const MOCK_EVENTS = [
     lanes: "2차로 통제",
     message: "승용차 2대 추돌, 견인 중",
     startedAt: "14:12",
+    endsAt: "15:30",
   },
   {
     id: "ev-2",

@@ -55,21 +55,27 @@ export const darkTheme = {
     card: "0 1px 3px rgba(0, 0, 0, 0.4)",
     float: "0 6px 20px rgba(0, 0, 0, 0.45)",
   },
+  // 밤 모드 — Claude Design "CCTV 밤 모드 시안" 1a 미드나잇 네이비(2026-10-07).
+  // 낮 화면의 남색 카드를 이어 가고, 카드는 지도보다 한 단계 밝게 띄워 경계선 없이도 분리한다.
   colors: {
     ...signal,
-    primary: "#4C8DFF",
+    primary: "#5B7CFF",
     primaryText: "#FFFFFF",
-    primarySoft: "rgba(76, 141, 255, 0.16)",
-    bg: "#131518",
-    surface: "#1E2125",
-    raised: "#2A2E33",
-    textStrong: "#F2F3F5",
-    textNormal: "#C3C7CC",
-    textWeak: "#868C93",
-    border: "#2E3237",
-    road: "#3A4148", // 스트립맵의 도로 선
+    primarySoft: "rgba(91, 124, 255, 0.16)",
+    bg: "#0E1422",
+    surface: "#1A2134",
+    sheet: "#141A2B", // 맨 아래 목적지 바·시트
+    raised: "rgba(255, 255, 255, 0.07)",
+    textStrong: "#E8ECF5",
+    textNormal: "#B6BDCC",
+    textWeak: "#8A93A8",
+    border: "rgba(255, 255, 255, 0.09)",
+    road: "#2A3450", // 스트립맵의 도로 선
     danger: "#FF6B5E",
-    overlay: "rgba(12, 14, 16, 0.72)",
+    overlay: "rgba(8, 12, 22, 0.72)",
+    distance: "#F0953A", // 영상 아래 "1.6km 앞"의 거리
+    dotOff: "rgba(255, 255, 255, 0.22)",
+    guide: { bg: "#1A2134", text: "#E8ECF5", sub: "#8A93A8", line: "rgba(255, 255, 255, 0.09)", muted: "#6E7891", border: "rgba(255, 255, 255, 0.07)", btn: "rgba(255, 255, 255, 0.07)" },
   },
 };
 
@@ -96,6 +102,11 @@ export const lightTheme = {
     road: "#C9CED3",
     danger: "#E03A2F",
     overlay: "rgba(12, 14, 16, 0.5)",
+    sheet: "#FFFFFF",
+    distance: "#F2B705",
+    dotOff: "rgba(255, 255, 255, 0.25)",
+    // 위 안내 카드 — 낮에도 어두운 카드(카카오내비 안내 카드처럼)
+    guide: { bg: "#151A22", text: "#FFFFFF", sub: "#9AA3B2", line: "rgba(255, 255, 255, 0.1)", muted: "#7D8796", border: "transparent", btn: "rgba(255, 255, 255, 0.08)" },
   },
 };
 

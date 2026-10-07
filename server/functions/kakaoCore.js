@@ -35,13 +35,21 @@ async function searchPlaces(restKey, { query, lat, lng }) {
   }));
 }
 
+// 경로 옵션 — 목적지 입력의 경로 비교(추천·최단 시간·무료도로)
+const ROUTE_OPT = {
+  recommend: { priority: "RECOMMEND" },
+  time: { priority: "TIME" },
+  free: { priority: "RECOMMEND", avoid: "toll" },
+};
+
 /**
  * 자동차 길찾기 → 앱이 쓰는 모양으로 줄인다.
- * @returns {{ distance:number, duration:number, roads:[{ name, state, speed, coords:[[lat,lng],...] }] }}
+ * @param {{ opt?: "recommend"|"time"|"free" }} 경로 옵션(기본 추천)
+ * @returns {{ distance:number, duration:number, toll:number, roads:[{ name, state, speed, coords:[[lat,lng],...] }] }}
  */
-async function getRoute(restKey, { origin, destination, heading }) {
+async function getRoute(restKey, { origin, destination, heading, opt = "recommend" }) {
   const o = `${origin.lng},${origin.lat}${Number.isFinite(heading) ? `,angle=${Math.round(heading)}` : ""}`;
-  const q = new URLSearchParams({ origin: o, destination: `${destination.lng},${destination.lat}`, priority: "RECOMMEND", summary: "false" });
+  const q = new URLSearchParams({ origin: o, destination: `${destination.lng},${destination.lat}`, ...(ROUTE_OPT[opt] || ROUTE_OPT.recommend), summary: "false" });
   const j = await kakaoGet(`https://apis-navi.kakaomobility.com/v1/directions?${q}`, restKey);
   const r = j.routes?.[0];
   if (!r || r.result_code !== 0) throw new Error(`NO_ROUTE ${r?.result_code ?? ""} ${r?.result_msg || ""}`.trim());
@@ -53,7 +61,7 @@ async function getRoute(restKey, { origin, destination, heading }) {
       roads.push({ name: rd.name || "", state: TRAFFIC[rd.traffic_state] || "unknown", speed: rd.traffic_speed ?? null, coords });
     })
   );
-  return { distance: r.summary.distance, duration: r.summary.duration, roads };
+  return { distance: r.summary.distance, duration: r.summary.duration, toll: r.summary.fare?.toll ?? 0, roads };
 }
 
 module.exports = { searchPlaces, getRoute };

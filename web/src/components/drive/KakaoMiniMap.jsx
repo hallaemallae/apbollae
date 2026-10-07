@@ -24,6 +24,18 @@ const MapBox = styled.div`
   overflow: hidden;
   border: ${({ theme, $fill }) => ($fill ? "none" : `1px solid ${theme.colors.border}`)};
   background: ${({ theme }) => theme.colors.surface};
+  /* 카카오 로고·저작권·축척(지도 상자 왼쪽 아래 맨 끝에 붙는 칸)을 아래 검색창에 가리지 않게 그 위로 올린다.
+     지도 자체는 검색창 뒤까지 채운다. 로고는 이용조건상 가리거나 바꾸면 안 된다(밤 필터에서도 뺀다). */
+  & > div[style*="bottom: 0px"][style*="z-index: 1"] {
+    bottom: var(--copy-bottom, 0px) !important;
+  }
+  /* 어두운 화면(해 진 뒤 자동 포함) — 카카오에는 야간 지도가 없어 바탕 지도 그림(img 타일)만 반전해 밤 지도로 만든다.
+     CCTV·돌발 마커(CustomOverlay)와 경로·소통 선(SVG)은 img 가 아니라 색이 그대로 남는다. */
+  /* 밤 모드 1a(미드나잇 네이비) 톤: 반전 → 세피아로 색을 모은 뒤 푸른 쪽으로 돌려 짙은 남색(#0E1422 근처)에 맞춘다 */
+  ${({ theme }) =>
+    theme.mode === "dark"
+      ? "img:not([src*='m_bi']) { filter: invert(0.92) hue-rotate(180deg) saturate(0.55) brightness(0.82) contrast(0.95); }"
+      : ""}
 `;
 
 const FillBox = styled.div`
@@ -31,7 +43,7 @@ const FillBox = styled.div`
   overflow: auto;
 `;
 
-// 내 위치 버튼(카카오내비처럼 동그란 버튼) — 따라가는 중이면 파랑, 지도를 끌어 멈췄으면 회색
+// 내 위치 버튼 — 배경 카드 없이 흰 아이콘만(지도 위에서 보이게 어두운 그림자). 따라가는 중이면 또렷하게, 멈췄으면 흐리게
 const FollowBtn = styled.button`
   position: absolute;
   right: 12px;
@@ -43,9 +55,12 @@ const FollowBtn = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${({ theme }) => theme.colors.surface};
-  color: ${({ theme, $on }) => ($on ? theme.colors.primary : theme.colors.textWeak)};
-  box-shadow: ${({ theme }) => theme.shadow.float};
+  background: transparent;
+  color: #ffffff;
+  opacity: ${({ $on }) => ($on ? 1 : 0.75)};
+  svg {
+    filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.7)) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+  }
 `;
 
 const Legend = styled.figcaption`
@@ -78,7 +93,16 @@ const Note = styled.p`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
+const FOLLOW_ZOOM = 4; // 내 위치 버튼을 누르면 이 단계까지 확대(카카오 지도 레벨, 작을수록 가까이)
+
 const NATION_MAX = 400; // 한 화면에 그릴 전국 CCTV 마커 상한
+
+// CCTV 아이콘(lucide "cctv") — 지도 마커는 점 대신 이 아이콘으로 그린다
+const cctvSvg = (color, size) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97"/><path d="M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z"/><path d="M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15"/><path d="M2 21v-4"/></svg>`;
+/** 동그란 CCTV 마커 — on: 지금 재생 중(어두운 면·흰 아이콘), dim: 범위 밖·반대 방향 */
+const cctvPin = ({ on = false, dim = false, size = 26 } = {}) =>
+  `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${on ? "#151A22" : "#fff"};border:${on ? "2px solid #fff" : "1px solid #E1E4EA"};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.25);opacity:${dim ? 0.75 : 1}">${cctvSvg(on ? "#fff" : dim ? "#8A9196" : "#F08A24", Math.round(size * 0.58))}</div>`;
 
 const EVENT_COLOR = { accident: "#E5483B", work: "#F08A24", control: "#3D7BE0" };
 
@@ -102,6 +126,7 @@ export default function KakaoMiniMap(props) {
   const [view, setView] = useState(null); // 지도 범위 { s, w, n, e, level } — 움직임이 멈출 때마다
   const [state, setState] = useState("loading"); // loading | ready | fallback
   const [following, setFollowing] = useState(true); // fill 모드: 내 위치 따라가기
+  const [zoomTick, setZoomTick] = useState(0); // 내 위치 버튼으로 확대한 뒤 다시 자리 잡기
   const rank = useMemo(() => Object.fromEntries(selected.map((c, i) => [c.id, i + 1])), [selected]);
 
   // SDK 로드 + 지도 생성(한 번)
@@ -163,7 +188,17 @@ export default function KakaoMiniMap(props) {
     const now = proj.containerPointFromCoords(new kakao.maps.LatLng(position.lat, position.lng));
     const center = proj.coordsFromContainerPoint(new kakao.maps.Point(W / 2 + now.x - want.x, H / 2 + now.y - want.y));
     map.panTo(center);
-  }, [fill, following, state, position, heading, insetTop, insetBottom]);
+  }, [fill, following, state, position, heading, insetTop, insetBottom, zoomTick]);
+
+  // 내 위치 버튼 — 따라가기를 켜고 내 위치 근처로 확대한다(CCTV 마커에 묻혀 안 보일 때)
+  const goMine = () => {
+    const map = mapRef.current;
+    setFollowing(true);
+    if (map && position && window.kakao) {
+      if (map.getLevel() > FOLLOW_ZOOM) map.setLevel(FOLLOW_ZOOM, { anchor: new window.kakao.maps.LatLng(position.lat, position.lng), animate: { duration: 300 } });
+      setTimeout(() => setZoomTick((n) => n + 1), 320);
+    }
+  };
 
   // 영역 크기가 바뀌면(화면 회전·목록 열고 닫기) 지도를 다시 맞춘다
   useEffect(() => {
@@ -193,10 +228,8 @@ export default function KakaoMiniMap(props) {
       const on = c.id === activeId;
       const el = document.createElement("div");
       el.title = c.name;
-      el.style.cssText = "padding:9px;cursor:pointer";
-      el.innerHTML = on
-        ? `<div style="width:18px;height:18px;border-radius:50%;background:#151A22;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)"></div>`
-        : `<div style="width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid #F08A24;box-shadow:0 1px 3px rgba(0,0,0,.25)"></div>`;
+      el.style.cssText = "padding:6px;cursor:pointer";
+      el.innerHTML = cctvPin({ on, size: on ? 30 : 24 });
       el.addEventListener("click", () => onSelect?.(c.id, c));
       const o = new kakao.maps.CustomOverlay({ position: new kakao.maps.LatLng(c.lat, c.lng), content: el, zIndex: on ? 5 : 1, yAnchor: 0.5, xAnchor: 0.5 });
       o.setMap(map);
@@ -259,13 +292,10 @@ export default function KakaoMiniMap(props) {
       if (rank[c.id]) return;
       const hollow = c.status === "opposite" || c.status === "otherRoad";
       const on = c.id === activeId;
-      const size = fill ? 12 : 9;
-      const dot = on
-        ? `<div style="width:18px;height:18px;border-radius:50%;background:${theme.colors.lane};border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)"></div>`
-        : `<div style="width:${size}px;height:${size}px;border-radius:50%;border:2px solid #8A9196;background:${hollow ? "transparent" : "#8A9196"};opacity:.9"></div>`;
+      const dot = cctvPin({ on, dim: !on && hollow, size: on ? 30 : fill ? 24 : 18 });
       overlay(
         c,
-        html(`<div title="${esc(c.name)}" style="padding:${fill ? 10 : 0}px">${dot}</div>`, on ? 4 : 2),
+        html(`<div title="${esc(c.name)}" style="padding:${fill ? 6 : 0}px">${dot}</div>`, on ? 4 : 2),
         fill ? () => onSelect?.(c.id) : undefined
       );
     });
@@ -289,7 +319,7 @@ export default function KakaoMiniMap(props) {
         overlay(
           c,
           {
-            content: `<div title="${esc(c.name)}" style="display:flex;flex-direction:column;align-items:center"><div style="display:flex;align-items:center;gap:5px;padding:4px 9px 4px 4px;border-radius:999px;background:${on ? "#151A22" : "#fff"};color:${on ? "#fff" : "#151A22"};font:700 12px/1 Pretendard,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.18);white-space:nowrap"><span style="width:18px;height:18px;border-radius:50%;background:#F08A24;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px">${rank[c.id]}</span>${km}</div><div style="width:2px;height:6px;background:#F08A24"></div></div>`,
+            content: `<div title="${esc(c.name)}" style="display:flex;flex-direction:column;align-items:center"><div style="display:flex;align-items:center;gap:5px;padding:4px 9px 4px 4px;border-radius:999px;background:${on ? "#151A22" : "#fff"};color:${on ? "#fff" : "#151A22"};font:700 12px/1 Pretendard,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.18);white-space:nowrap"><span style="width:20px;height:20px;border-radius:50%;background:#F08A24;display:flex;align-items:center;justify-content:center">${cctvSvg("#fff", 13)}</span>${km}</div><div style="width:2px;height:6px;background:#F08A24"></div></div>`,
             z: on ? 6 : 4,
             yAnchor: 1,
           },
@@ -314,7 +344,7 @@ export default function KakaoMiniMap(props) {
         heading != null
           ? `<div style="transform:rotate(${heading}deg);width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:24px solid #fff;filter:drop-shadow(0 0 2px #000)"></div>`
           : `<div style="width:16px;height:16px;border-radius:50%;background:#3D7BE0;border:3px solid #fff;box-shadow:0 0 0 6px rgba(61,123,224,.25)"></div>`,
-        5
+        10 // CCTV 마커(최대 6)보다 위 — 내 위치가 마커에 묻히지 않게
       )
     );
 
@@ -334,10 +364,10 @@ export default function KakaoMiniMap(props) {
 
   return (
     <Wrap $fill={fill}>
-      <MapBox $fill={fill} ref={boxRef} role="img" aria-label={heading != null ? "진행 방향 기준 전방 지도" : "내 주변 지도"} />
+      <MapBox $fill={fill} ref={boxRef} style={fill ? { "--copy-bottom": `${insetBottom}px` } : undefined} role="img" aria-label={heading != null ? "진행 방향 기준 전방 지도" : "내 주변 지도"} />
       {fill && position ? (
-        <FollowBtn type="button" $on={following} style={{ bottom: controlsBottom }} aria-label="내 위치로" aria-pressed={following} onClick={() => setFollowing(true)}>
-          <FiCrosshair size={22} aria-hidden="true" />
+        <FollowBtn type="button" $on={following} style={{ bottom: controlsBottom }} aria-label="내 위치로" aria-pressed={following} onClick={goMine}>
+          <FiCrosshair size={28} strokeWidth={2.4} aria-hidden="true" />
         </FollowBtn>
       ) : null}
       {fill ? null : (

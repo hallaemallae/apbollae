@@ -74,6 +74,7 @@ function normEvent(e) {
   const label = type === "accident" ? "사고" : type === "work" ? "공사" : OTHER_LABEL[t] || "돌발";
   const drc = String(e.roadDrcType || "");
   const sd = String(e.startDate || "");
+  const ed = String(e.endDate || ""); // 해소 예정(없거나 비어 있는 경우가 많다)
   const msg = parseMessage(e.message);
   const lanes = String(e.lanesBlocked || "").trim() || msg.lanes;
   return {
@@ -88,6 +89,7 @@ function normEvent(e) {
     message: msg.text,
     dirHint: msg.dirHint, // "부산방향" 같은 표기 — 앱이 진행 방향과 비교한다
     startedAt: sd.length >= 12 ? `${sd.slice(8, 10)}:${sd.slice(10, 12)}` : "",
+    endsAt: ed.length >= 12 ? `${ed.slice(8, 10)}:${ed.slice(10, 12)}` : "",
   };
 }
 

@@ -10,6 +10,19 @@ import { useFlow } from "../../context/FlowContext";
 import { useAuth } from "../../context/AuthContext";
 import { SPEED_PRESETS, teleport, resetTrip, jumpTrip, TRIP_START } from "../../services/simulator";
 import { NO_CCTV_INDEX } from "../../mock/route";
+import {
+  useAccuracyLog,
+  setRecordEnabled,
+  summarize,
+  pct,
+  downloadCsv,
+  copyCsv,
+  removeLastEntry,
+  clearEntries,
+  TARGET_POINTS,
+  KPI_TARGET,
+} from "../../services/accuracyLog";
+import { showToast } from "../../utils/toast";
 
 const LOGIN_STEPS = [
   ["L1", "로그인"],
@@ -161,6 +174,7 @@ export default function ScenarioPanel() {
   const { scenario, set, flowStatus } = useScenario();
   const { resetDrive, setPermission } = useFlow();
   const auth = useAuth();
+  const accuracy = useAccuracyLog();
 
   if (!open) {
     return (
@@ -292,6 +306,69 @@ export default function ScenarioPanel() {
           </Chips>
         </>
       ) : null}
+
+      <Label>테스트 주행 정확도 기록 (KPI {Math.round(KPI_TARGET * 100)}%, {TARGET_POINTS}곳)</Label>
+      <Chips>
+        <Chip type="button" $on={accuracy.enabled} aria-pressed={accuracy.enabled} onClick={() => setRecordEnabled(!accuracy.enabled)}>
+          {accuracy.enabled ? "기록 모드 켜짐" : "기록 모드 켜기"}
+        </Chip>
+        {accuracy.enabled ? (
+          <Chip
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              window.dispatchEvent(new Event("apb:record")); // 주행 화면이 지금 선별 결과로 기록 시트를 연다
+            }}
+          >
+            지금 지점 기록
+          </Chip>
+        ) : null}
+      </Chips>
+      {accuracy.entries.length ? (
+        <>
+          {(() => {
+            const sum = summarize(accuracy.entries);
+            return (
+              <p style={{ margin: "10px 0 8px", lineHeight: 1.6 }}>
+                지점 <b>{sum.points}</b>/{TARGET_POINTS} · CCTV 정확도{" "}
+                <b style={{ color: sum.cctv != null && sum.cctv < KPI_TARGET ? "#E5483B" : "#0B6B4C" }}>{pct(sum.cctv)}</b> ({sum.correct}/{sum.judged})
+                <br />
+                1순위 정확도 {pct(sum.first)} · 지점 전부 맞음 {pct(sum.point)}
+              </p>
+            );
+          })()}
+          <Chips>
+            <Chip type="button" onClick={() => downloadCsv(accuracy.entries)}>
+              CSV 내려받기
+            </Chip>
+            <Chip
+              type="button"
+              onClick={() =>
+                copyCsv(accuracy.entries)
+                  .then(() => showToast("CSV를 복사했어요. 메모장이나 시트에 붙여 넣으세요"))
+                  .catch(() => showToast("복사하지 못했어요. CSV 내려받기를 써 주세요"))
+              }
+            >
+              CSV 복사
+            </Chip>
+            <Chip type="button" onClick={removeLastEntry}>
+              마지막 지점 지우기
+            </Chip>
+            <Chip
+              type="button"
+              onClick={() => {
+                if (window.confirm(`기록 ${accuracy.entries.length}건을 모두 지울까요? 되돌릴 수 없어요.`)) clearEntries();
+              }}
+            >
+              전부 지우기
+            </Chip>
+          </Chips>
+        </>
+      ) : (
+        <p style={{ margin: "10px 0 0", lineHeight: 1.5, color: "#5D666C" }}>
+          켜고 테스트 지점마다 “지금 지점 기록”을 누르면, 그 순간 고른 CCTV가 맞는지 판정해 이 기기에 저장해요.
+        </p>
+      )}
 
       <Label>예외 일으키기</Label>
       <Chips>

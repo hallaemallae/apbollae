@@ -43,6 +43,14 @@ function mockRoute(origin, destination) {
   return { distance: Math.round(distance * 1000), duration: Math.round((distance / 60) * 3600), roads };
 }
 
+// 목업 경로 옵션 — 같은 경부선 선에 시간·통행료만 다르게(화면 확인용)
+function mockRouteOpt(r, opt) {
+  const toll = Math.round((r.distance / 1000) * 45 / 100) * 100;
+  if (opt === "time") return { ...r, duration: Math.round(r.duration * 0.96), toll: toll + 1700 };
+  if (opt === "free") return { ...r, distance: Math.round(r.distance * 1.12), duration: Math.round(r.duration * 1.45), toll: 0 };
+  return { ...r, toll };
+}
+
 /* ── 공개 함수 ────────────────────────────────── */
 
 async function getJson(url) {
@@ -72,10 +80,10 @@ export async function searchPlaces(query, near, { data = "live" } = {}) {
 }
 
 /** @returns {Promise<{ distance, duration, roads:[{name,state,speed,coords}] }>} */
-export async function fetchRoute(origin, destination, heading, { data = "live" } = {}) {
+export async function fetchRoute(origin, destination, heading, { data = "live", opt = "recommend" } = {}) {
   if (data === "mock") {
     await wait(300);
-    return mockRoute(origin, destination);
+    return mockRouteOpt(mockRoute(origin, destination), opt);
   }
   const q = new URLSearchParams({
     olat: origin.lat.toFixed(6),
@@ -84,5 +92,6 @@ export async function fetchRoute(origin, destination, heading, { data = "live" }
     dlng: destination.lng.toFixed(6),
   });
   if (heading != null) q.set("heading", String(Math.round(heading)));
+  if (opt !== "recommend") q.set("opt", opt);
   return getJson(`/api/route?${q}`);
 }

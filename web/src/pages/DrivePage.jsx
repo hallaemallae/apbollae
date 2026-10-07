@@ -4,29 +4,34 @@
 //  - 왼쪽 아래 속도, 오른쪽 아래 "앞쪽 N"(목록 시트)·내 위치 버튼, 맨 아래 목적지 바.
 //  - 옅은 색 면은 쓰지 않는다(흰 면 + 테두리, 어두운 카드 위에서는 구분선만).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import styled, { useTheme } from "styled-components";
-import { FiInfo, FiNavigation, FiCloudOff, FiFlag, FiSkipForward, FiSliders, FiVideoOff, FiArrowUp } from "react-icons/fi";
+import { FiFastForward, FiShare2, FiSearch, FiNavigation, FiCloudOff, FiFlag, FiSkipForward, FiSliders, FiVideoOff, FiChevronLeft, FiChevronRight, FiMaximize2, FiX } from "react-icons/fi";
 import CctvPlayer from "../components/drive/CctvPlayer";
 import CctvStrip from "../components/drive/CctvStrip";
 import KakaoMiniMap from "../components/drive/KakaoMiniMap";
-import { compassLabel } from "../components/drive/GuideSign";
 import useLocationStream from "../hooks/useLocationStream";
 import useAheadCctvs from "../hooks/useAheadCctvs";
 import useRoute from "../hooks/useRoute";
 import useRoadMatch from "../hooks/useRoadMatch";
 import DestinationSheet from "../components/drive/DestinationSheet";
+import RecordSheet from "../components/drive/RecordSheet";
+import DriverView from "../components/drive/DriverView";
+import useProbeRoute from "../hooks/useProbeRoute";
+import useTripRecorder from "../hooks/useTripRecorder";
+import useWeather from "../hooks/useWeather";
+import { captureFrame, shareImage } from "../utils/shareFrame";
+import { buildSummary, eventsAhead, findJamEndCctv, jamAhead } from "../utils/situation";
 import { useFlow } from "../context/FlowContext";
+import { useDrivePublish } from "../context/DriveDataContext";
 import { useScenario } from "../context/ScenarioContext";
 import { ROUTE_ROAD } from "../mock/route";
 import { routeNodes, setTripPath } from "../services/simulator";
-import { distanceKm, travelDirection, AHEAD } from "../utils/aheadFilter";
+import { distanceKm, AHEAD, formatDistance, angleDiff, bearingDeg, travelDirection } from "../utils/aheadFilter";
 import { TRAFFIC_LABEL } from "../utils/routeFilter";
 import { showToast } from "../utils/toast";
 import { fetchCctv, fetchNationCctvs } from "../services/itsApi";
 
-// 안내 카드는 밝은/어두운 화면 모두 같은 어두운 색이다(카카오내비 안내 카드처럼)
-const CARD = { bg: "#151A22", text: "#FFFFFF", sub: "#9AA3B2", line: "rgba(255,255,255,0.1)", muted: "#7D8796" };
+// 안내 카드 색은 theme.colors.guide — 낮에는 어두운 카드, 밤에는 지도보다 한 단계 밝은 남색 카드
 
 const Page = styled.div`
   position: relative;
@@ -51,103 +56,118 @@ const Center = styled.div`
 `;
 
 /* ── 위 안내 카드 ── */
+// 위 CCTV 카드 — 머리글 없이 영상과 조작 줄만(이름·실시간·시각은 영상 안에 있다)
 const Guide = styled.div`
   position: absolute;
   top: calc(env(safe-area-inset-top) + 8px);
-  left: 12px;
-  right: 12px;
+  left: 8px;
+  right: 8px;
   z-index: 10;
-  border-radius: 22px;
-  background: ${CARD.bg};
-  color: ${CARD.text};
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
-  overflow: hidden;
-`;
-
-const GuideHead = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 12px 12px 14px;
-`;
-
-const DirTile = styled.div`
-  flex: none;
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: ${({ theme }) => theme.colors.primary};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const GuideText = styled.div`
-  flex: 1;
-  min-width: 0;
-  small {
-    display: block;
-    font-size: 13px;
-    font-weight: 500;
-    color: ${CARD.sub};
+  border-radius: 18px;
+  color: ${({ theme }) => theme.colors.guide.text};
+  /* 영상이 있으면 카드 면 없이(투명) 영상만 띄운다 — 아래 글자·아이콘은 지도 위에서 읽히게 어두운 그림자.
+     영상이 없을 때(위치 확인·CCTV 없음·서버 장애 안내)는 글이 길어 카드 면을 둔다. */
+  ${({ theme, $clear }) =>
+    $clear
+      ? `
+    background: transparent;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.55);
+    svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
+  `
+      : `
+    background: ${theme.colors.guide.bg};
+    border: 1px solid ${theme.colors.guide.border};
+    box-shadow: ${theme.mode === "dark" ? "0 12px 30px rgba(0, 0, 0, 0.6)" : "0 8px 24px rgba(0, 0, 0, 0.22)"};
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  b {
-    display: block;
-    font-size: 22px;
-    line-height: 1.25;
-    font-weight: 700;
-    letter-spacing: -0.3px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`;
-
-const RoundBtn = styled.button`
-  flex: none;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid ${CARD.line};
-  background: transparent;
-  color: #c9cfd8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  `}
 `;
 
 const GuideNote = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 14px 10px;
+  margin: 12px 14px 0;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.45;
-  color: ${CARD.sub};
+  color: ${({ theme }) => theme.colors.guide.sub};
   i {
     flex: none;
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: ${({ $dot }) => $dot || CARD.sub};
+    background: ${({ $dot, theme }) => $dot || theme.colors.guide.sub};
   }
 `;
 
 const Video = styled.div`
   position: relative;
-  margin: 0 12px 12px;
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  text-shadow: none;
+  /* 전체 화면 — 같은 플레이어를 그대로 키운다(다시 연결하지 않음) */
+  ${({ $full }) =>
+    $full &&
+    `
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #000;
+  `}
+`;
+
+// 영상 칸 위 띄운 조작 — 반투명 검정 원(영상 위에서 늘 보이게)
+const OverlayBtn = styled.button`
+  position: absolute;
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  &:disabled {
+    opacity: 0.3;
+  }
+`;
+
+// "1.6km 앞 · 약 1분 후 통과" — 지금 영상이 언제 다음 CCTV 로 바뀌는지
+const Eta = styled.div`
+  position: absolute;
+  left: 10px;
+  top: ${({ $full }) => ($full ? "calc(env(safe-area-inset-top) + 44px)" : "38px")};
+  z-index: 3;
+  max-width: calc(100% - 20px);
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: ${({ $full }) => ($full ? 15 : 13)}px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  b {
+    color: ${({ theme }) => theme.colors.lane};
+  }
+  small {
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.75;
+  }
 `;
 
 const BackToAuto = styled.button`
   position: absolute;
   right: 10px;
-  bottom: 30px;
+  top: 40px;
   z-index: 3;
   min-height: 40px;
   padding: 0 14px;
@@ -162,16 +182,151 @@ const BackToAuto = styled.button`
   font-weight: 800;
 `;
 
+// ① 원인 한 줄 요약 띠 — 누르면 ③ 운전자에게 보여 주기, 오른쪽은 ② 정체 끝 CCTV
+const SummaryBar = styled.div`
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 4px;
+  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.guide.bg};
+  border: 1px solid ${({ theme }) => theme.colors.guide.border};
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  text-shadow: none;
+  > button {
+    border: none;
+    font-family: inherit;
+    text-align: left;
+    color: inherit;
+  }
+  > button:first-child {
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: transparent;
+  }
+  i {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: ${({ $tone }) => $tone};
+  }
+  b {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  small {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: ${({ theme }) => theme.colors.guide.sub};
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  > button + button {
+    flex: none;
+    width: 76px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 12px;
+    background: ${({ theme }) => theme.colors.primary};
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.25;
+  }
+`;
+
+// 영상 아래 조작 줄 — ‹  1.6km 앞 · 약 1분 후 통과 (점: 몇 번째 CCTV)  ›
+const Controls = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px 6px;
+  > button {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    border: none;
+    background: transparent;
+    color: ${({ theme }) => theme.colors.guide.text};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  > button:disabled {
+    opacity: 0.3;
+  }
+  > div {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  p {
+    margin: 0;
+    max-width: 100%;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+  }
+  p b {
+    color: ${({ theme }) => theme.colors.distance};
+  }
+`;
+
+const Dots = styled.span`
+  display: flex;
+  gap: 4px;
+  i {
+    height: 6px;
+    width: 6px;
+    border-radius: 3px;
+    background: ${({ theme }) => theme.colors.dotOff};
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
+    transition: width 0.2s ease;
+  }
+  i[data-on="true"] {
+    width: 16px;
+    background: ${({ theme }) => theme.colors.guide.text};
+  }
+`;
+
 const None = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 0 12px 12px;
-  padding: 12px 2px 2px;
-  border-top: 1px solid ${CARD.line};
+  margin: 0 12px;
+  padding: 14px 2px;
   > svg {
     flex: none;
-    color: ${CARD.muted};
+    color: ${({ theme }) => theme.colors.guide.muted};
   }
   > div {
     flex: 1;
@@ -188,7 +343,7 @@ const None = styled.div`
     font-size: 12px;
     line-height: 1.45;
     white-space: pre-line;
-    color: ${CARD.sub};
+    color: ${({ theme }) => theme.colors.guide.sub};
   }
   em {
     flex: none;
@@ -197,7 +352,7 @@ const None = styled.div`
     font-weight: 600;
     line-height: 1.35;
     text-align: right;
-    color: ${CARD.sub};
+    color: ${({ theme }) => theme.colors.guide.sub};
     font-variant-numeric: tabular-nums;
   }
 `;
@@ -206,7 +361,7 @@ const Progress = styled.div`
   margin-top: 7px;
   height: 3px;
   border-radius: 2px;
-  background: ${CARD.line};
+  background: ${({ theme }) => theme.colors.guide.line};
   overflow: hidden;
   > div {
     height: 100%;
@@ -226,7 +381,8 @@ const PillBtn = styled.button`
   height: 48px;
   padding: 0 14px;
   border-radius: 24px;
-  border: none;
+  /* 밤에는 그림자가 안 보여 얇은 선으로 지도와 가른다 */
+  border: ${({ theme }) => (theme.mode === "dark" ? `1px solid ${theme.colors.border}` : "none")};
   background: ${({ theme }) => theme.colors.surface};
   box-shadow: ${({ theme }) => theme.shadow.float};
   display: flex;
@@ -243,25 +399,25 @@ const Speed = styled.div`
   z-index: 6;
   width: 72px;
   height: 72px;
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.surface};
-  box-shadow: ${({ theme }) => theme.shadow.float};
+  /* 배경 카드 없이 숫자만 — 지도 위에서 읽히게 반대색 테두리(halo) */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  --halo: ${({ theme }) => (theme.mode === "dark" ? "rgba(0, 0, 0, 0.85)" : "rgba(255, 255, 255, 0.95)")};
+  text-shadow: 0 0 2px var(--halo), 0 0 6px var(--halo), 0 0 10px var(--halo);
   b {
     font-family: ${({ theme }) => theme.fonts.numeric};
-    font-size: 28px;
+    font-size: 34px;
     line-height: 1;
     font-weight: 700;
     color: ${({ theme }) => theme.colors.textStrong};
   }
   small {
-    margin-top: 3px;
-    font-size: 10px;
-    font-weight: 600;
-    color: ${({ theme }) => theme.colors.textWeak};
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.textNormal};
   }
 `;
 
@@ -272,33 +428,45 @@ const BottomBar = styled.div`
   right: 0;
   bottom: 0;
   z-index: 8;
-  padding: 14px 12px calc(env(safe-area-inset-bottom) + 14px);
-  background: ${({ theme }) => theme.colors.surface};
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  padding: 12px; /* 아래 안전 영역은 탭바가 맡는다 */
+  /* 배경 면 없이 목적지 카드만 지도 위에 띄운다 */
+  pointer-events: none;
+  > * {
+    pointer-events: auto;
+  }
 `;
 
-const DestBtn = styled.div`
+// 목적지 검색창 — 카카오내비 첫 화면 검색창처럼: 돋보기 + "어디로 가세요?". 누르면 장소 검색 시트.
+// 목적지가 있으면 같은 자리에 목적지 이름·남은 거리, 오른쪽 X 로 취소. 할래말래 지도 위 카드의 선·그림자를 쓴다.
+const SearchBar = styled.div`
   display: flex;
   align-items: center;
-  min-height: 56px;
-  border-radius: 16px;
-  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  min-height: 54px;
+  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? theme.colors.border : "#E8EAEF")};
+  box-shadow: ${({ theme }) => (theme.mode === "dark" ? "0 6px 16px rgba(0, 0, 0, 0.4)" : "0 6px 16px rgba(15, 23, 42, 0.12)")};
   > button:first-child {
     flex: 1;
     min-width: 0;
-    min-height: 56px;
+    min-height: 54px;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 0 16px;
+    padding: 0 8px 0 16px;
     border: none;
     background: transparent;
+    font-family: inherit;
     text-align: left;
   }
   > button:first-child > svg {
     flex: none;
-    color: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme, $set }) => ($set ? theme.colors.primary : theme.colors.textStrong)};
+  }
+  .ph {
+    font-size: 17px;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.textWeak};
   }
   b {
     display: block;
@@ -311,19 +479,25 @@ const DestBtn = styled.div`
   }
   small {
     display: block;
-    margin-top: 2px;
+    margin-top: 1px;
     font-size: 12px;
     font-weight: 500;
     color: ${({ theme }) => theme.colors.textWeak};
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   > button + button {
     flex: none;
-    min-height: 48px;
-    padding: 0 14px;
+    width: 48px;
+    height: 48px;
+    margin-right: 3px;
     border: none;
+    border-radius: 50%;
     background: transparent;
-    font-size: 14px;
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
@@ -375,8 +549,17 @@ const Sheet = styled.div`
   }
 `;
 
-export default function DrivePage() {
-  const navigate = useNavigate();
+const SUMMARY_TONE = {
+  accident: (t) => t.colors.accident,
+  work: (t) => t.colors.work,
+  control: (t) => t.colors.control,
+  jam: (t) => t.colors.traffic.jam,
+  clear: (t) => t.colors.traffic.smooth,
+  unknown: (t) => t.colors.textWeak,
+};
+
+/** visible: 홈 탭이 보이는 중인가(다른 탭이면 숨긴 채 계산만 계속하고 영상은 내린다) */
+export default function DrivePage({ visible = true }) {
   const theme = useTheme();
   const { dataNoticeSeen, setDataNoticeSeen, setDestination } = useFlow();
   const { scenario, reportFlow } = useScenario();
@@ -387,9 +570,13 @@ export default function DrivePage() {
   const matched = useRoadMatch(loc.fix, loc.heading, !sim);
   // 매칭 도로는 표지판 표시용이다 — 노드링크 도로명은 CCTV 이름 표기([경부선] 등)와 달라 names(2차 도로명 필터)는 넣지 않는다
   const road = sim ? ROUTE_ROAD : matched.road ? { name: matched.road.name, no: matched.road.rank === 101 && matched.road.no ? Number(matched.road.no) : null } : null;
-  const direction = travelDirection(loc.heading, road);
   const nav = useRoute(loc.fix, loc.heading);
   const ahead = useAheadCctvs({ fix: loc.fix, heading: loc.heading, road, nav, roadPath: matched.path });
+  // 앞 구간 소통 — 목적지 경로가 있으면 그것, 없으면 앞 몇 km 임시 경로(카카오 길찾기)
+  const probe = useProbeRoute({ fix: loc.fix, heading: loc.heading, path: matched.path, enabled: !nav.route && !!loc.fix, data: scenario.data });
+  const traffic = useMemo(() => (nav.route ? { route: nav.route, s0: nav.s0 } : probe), [nav.route, nav.s0, probe]);
+  const direction = travelDirection(loc.heading, road);
+  const [driverView, setDriverView] = useState(false); // ③ 운전자에게 보여 주기
   // 경로 주행 시뮬레이션 — 경로를 받으면 그 선을 따라 달린다
   useEffect(() => {
     if (scenario.source === "trip" && nav.route) setTripPath(nav.route.pts);
@@ -398,6 +585,24 @@ export default function DrivePage() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const [listOpen, setListOpen] = useState(false); // 오른쪽 "앞쪽 N" 버튼 → CCTV 목록 시트
+  const [record, setRecord] = useState(null); // 기록 시트를 연 순간의 선별 결과
+
+  // 전체 화면 — 영상을 누르면 켜지고, 폰을 가로로 돌리면 자동으로 켜진다(닫으면 다시 돌릴 때까지 세로 화면)
+  const [fullTap, setFullTap] = useState(false);
+  const [landscape, setLandscape] = useState(false);
+  const [landDismissed, setLandDismissed] = useState(false);
+  useEffect(() => {
+    if (!window.matchMedia) return undefined;
+    // 폰 가로(높이가 낮은 가로 화면)만 — PC 의 넓은 창은 해당하지 않게
+    const mq = window.matchMedia("(orientation: landscape) and (max-height: 540px)");
+    const on = () => {
+      setLandscape(mq.matches);
+      setLandDismissed(false);
+    };
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
 
   // 전국 CCTV(지도 표시용) — 프록시가 100분 캐시한 목록을 30분마다 다시 받는다(ITS 호출은 프록시 캐시가 막는다)
   const [nation, setNation] = useState(null);
@@ -420,30 +625,54 @@ export default function DrivePage() {
   const [pickedByUser, setPickedByUser] = useState(false);
   const [justRefreshed, setJustRefreshed] = useState(false);
 
+  // 지나침 판정 — 목록은 30초·500m 마다만 다시 고르므로, 그 사이에 지나친 CCTV 는 위치가 들어올 때마다 여기서 뺀다.
+  //  경로 모드: 경로를 따라 남은 거리가 0 이하. 그 밖: 300m 안에서 내 진행 방향 뒤쪽(방위 차 90° 넘음).
+  const isPassed = useCallback(
+    (c) => {
+      if (!loc.fix) return false;
+      if (routeMode && c.s != null) return c.s - nav.s0 <= 0;
+      if (loc.heading == null) return false;
+      return distanceKm(loc.fix, c) < 0.3 && Math.abs(angleDiff(bearingDeg(loc.fix, c), loc.heading)) > 90;
+    },
+    [loc.fix, loc.heading, routeMode, nav.s0]
+  );
+  // 한 번 지나친 CCTV 는 다음 재선별까지 계속 뺀다(GPS 흔들림으로 다시 나타나지 않게)
+  const [passedIds, setPassedIds] = useState(() => new Set());
+  useEffect(() => setPassedIds(new Set()), [ahead.refreshedAt]);
+  useEffect(() => {
+    if (ahead.mode === "nearby") return;
+    const fresh = ahead.selected.filter((c) => !passedIds.has(c.id) && isPassed(c));
+    if (!fresh.length) return;
+    setPassedIds((s) => new Set([...s, ...fresh.map((c) => c.id)]));
+    ahead.refresh(); // 지나쳤으니 바로 다시 골라 뒤에 있던 CCTV 를 목록에 채운다
+  }, [ahead.selected, ahead.mode, ahead.refresh, passedIds, isPassed]);
+
   const items = useMemo(
     () =>
-      ahead.selected.map((c) => ({
-        ...c,
-        // 경로 모드는 경로를 따라 남은 거리, 그 밖은 직선거리
-        liveKm: routeMode && c.s != null ? Math.max(0.01, c.s - nav.s0) : loc.fix ? distanceKm(loc.fix, c) : c.km,
-      })),
-    [ahead.selected, loc.fix, routeMode, nav.s0]
+      ahead.selected
+        .filter((c) => !passedIds.has(c.id))
+        .map((c) => ({
+          ...c,
+          // 경로 모드는 경로를 따라 남은 거리, 그 밖은 직선거리
+          liveKm: routeMode && c.s != null ? Math.max(0.01, c.s - nav.s0) : loc.fix ? distanceKm(loc.fix, c) : c.km,
+        })),
+    [ahead.selected, passedIds, loc.fix, routeMode, nav.s0]
   );
 
-  // 바로 앞(선별 1순위부터) 영상이 나오는 CCTV
-  const firstPlayable = useMemo(() => ahead.selected.find((c) => !failedIds.has(c.id)) || null, [ahead.selected, failedIds]);
+  // 바로 앞(지나치지 않은 1순위부터) 영상이 나오는 CCTV
+  const firstPlayable = useMemo(() => items.find((c) => !failedIds.has(c.id)) || null, [items, failedIds]);
 
   // 자동 모드: 늘 바로 앞 CCTV 를 튼다(지나치면 다음 것으로).
   // 지도에서 고른 CCTV(수동)는 지나치기 전까지 유지하고, 지나치거나 목록에서 사라지면 자동으로 돌아간다.
   // 지나침: 경로 모드는 behind, 부채꼴 모드는 뒤쪽(방위 차 90° 넘음) — 옆 도로 CCTV 를 골라 둔 건 유지한다.
   useEffect(() => {
     const picked = pickedByUser ? ahead.all.find((c) => c.id === activeId) || (extra?.id === activeId ? extra : null) : null;
-    const passed = picked && picked.status === "behind" && (picked.diff == null || Math.abs(picked.diff) > 90);
+    const passed = picked && ((picked.status === "behind" && (picked.diff == null || Math.abs(picked.diff) > 90)) || passedIds.has(picked.id) || isPassed(picked));
     if (picked && !passed) return;
     const nextId = firstPlayable ? firstPlayable.id : null;
     if (nextId !== activeId) setActiveId(nextId);
     if (pickedByUser) setPickedByUser(false);
-  }, [ahead.all, firstPlayable, activeId, pickedByUser, extra]);
+  }, [ahead.all, firstPlayable, activeId, pickedByUser, extra, passedIds, isPassed]);
 
   // 첫 선별 이후의 재선별은 흐름 9단계(자동 갱신)로 잠깐 표시
   const firstRefreshRef = useRef(0);
@@ -466,6 +695,42 @@ export default function DrivePage() {
     return other ? { ...other, liveKm: loc.fix ? distanceKm(loc.fix, other) : other.km } : null;
   }, [items, ahead.all, activeId, loc.fix, extra]);
 
+  const full = visible && !!active && (fullTap || (landscape && !landDismissed));
+  const closeFull = useCallback(() => {
+    setFullTap(false);
+    setLandDismissed(true);
+  }, []);
+  useEffect(() => {
+    if (!full) return undefined;
+    const onKey = (e) => e.key === "Escape" && closeFull();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [full, closeFull]);
+
+  // 지금 영상을 언제 지나치는지(지나치면 자동으로 다음 CCTV) — 거리 ÷ 지금 속도
+  const eta = useMemo(() => {
+    if (!active || active.liveKm == null) return null;
+    const d = formatDistance(active.liveKm);
+    const dist = `${d.value}${d.unit}`;
+    // 주변 모드·지도에서 고른 옆 도로 CCTV 는 지나칠 시각을 말할 수 없다
+    if (ahead.mode === "nearby" || !items.some((c) => c.id === active.id)) return { dist, label: "거리", when: null };
+    const v = loc.signalLost ? null : loc.fix?.speed;
+    if (v == null || v < 5) return { dist, label: "앞", when: "정차 중" };
+    const sec = (active.liveKm / v) * 3600;
+    const when = sec < 15 ? "곧 통과" : sec < 55 ? `약 ${Math.round(sec / 10) * 10}초 후 통과` : `약 ${Math.max(1, Math.round(sec / 60))}분 후 통과`;
+    return { dist, label: "앞", when };
+  }, [active, items, ahead.mode, loc.fix, loc.signalLost]);
+
+  // 다른 CCTV 로 전환 — 고른 목록(가까운 순) 안에서 앞뒤로, 영상 없는 CCTV 는 건너뛴다
+  const playable = items.filter((c) => !failedIds.has(c.id));
+  const activeIdx = playable.findIndex((c) => c.id === activeId);
+  const step = (dir) => {
+    if (!playable.length) return;
+    const i = activeIdx < 0 ? (dir > 0 ? 0 : playable.length - 1) : (activeIdx + dir + playable.length) % playable.length;
+    select(playable[i].id);
+  };
+  const canStep = playable.length > (activeIdx < 0 ? 0 : 1);
+
   // 첫 재생 때 한 번 — 데이터 사용 안내
   useEffect(() => {
     if (!active || dataNoticeSeen) return;
@@ -478,13 +743,13 @@ export default function DrivePage() {
     (cctv) => {
       const failed = new Set(failedIds).add(cctv.id);
       setFailedIds(failed);
-      const idx = ahead.selected.findIndex((c) => c.id === cctv.id);
-      const next = [...ahead.selected.slice(idx + 1), ...ahead.selected.slice(0, idx)].find((c) => !failed.has(c.id));
+      const idx = items.findIndex((c) => c.id === cctv.id);
+      const next = [...items.slice(idx + 1), ...items.slice(0, idx)].find((c) => !failed.has(c.id));
       setActiveId(next ? next.id : null);
       setPickedByUser(false);
       showToast(next ? "영상이 나오지 않아 다음 CCTV로 넘어갔어요" : "지금 볼 수 있는 영상이 없어요");
     },
-    [ahead.selected, failedIds]
+    [items, failedIds]
   );
 
   const select = (id, item) => {
@@ -510,12 +775,94 @@ export default function DrivePage() {
     setPickedByUser(id !== firstPlayable?.id);
   };
 
+  // 정확도 기록 — 누른 순간의 선별 결과를 얼려 시트로 넘긴다(시트가 열린 동안 갱신돼도 판정 대상은 그대로)
+  const openRecord = () =>
+    setRecord({
+      t: Date.now(),
+      lat: loc.fix?.lat,
+      lng: loc.fix?.lng,
+      heading: loc.heading,
+      headingSource: loc.headingSource || null,
+      speed: loc.fix?.speed ?? null,
+      mode: ahead.mode,
+      road: (nav.route ? nav.road?.name : road?.name) || "",
+      destination: nav.destination?.name || "",
+      items: items.map((c) => ({ id: c.id, name: c.name, source: c.source || "", km: c.liveKm })),
+    });
+  // ⑦ 지금 장면을 이미지로 공유(카톡 등) — 원인 요약과 출처를 얹는다
+  const videoRef = useRef(null);
+  const shareScene = async () => {
+    try {
+      const blob = await captureFrame(videoRef.current, { cctv: active, summary });
+      const r = await shareImage(blob, `${active?.name || "CCTV"} — ${summary.title}`);
+      if (r === "downloaded") showToast("장면을 이미지로 저장했어요");
+    } catch (e) {
+      console.warn("[share]", e);
+      showToast("이 영상은 장면을 저장할 수 없어요");
+    }
+  };
+
+  // 다른 탭에서 CCTV 를 고르면 그 영상으로
+  const selectRef = useRef(null);
+  selectRef.current = (id, item) => select(id, item);
+  useEffect(() => {
+    const on = (e) => selectRef.current?.(e.detail.id, e.detail.item);
+    window.addEventListener("apb:select", on);
+    return () => window.removeEventListener("apb:select", on);
+  }, []);
+
+  // 흐름 패널의 "이 지점 기록" 버튼이 보내는 신호(주행 화면에는 기록 버튼을 두지 않는다)
+  const openRecordRef = useRef(openRecord);
+  openRecordRef.current = openRecord;
+  useEffect(() => {
+    const on = () => openRecordRef.current();
+    window.addEventListener("apb:record", on);
+    return () => window.removeEventListener("apb:record", on);
+  }, []);
+
   const backToAuto = () => {
     setPickedByUser(false);
     setActiveId(firstPlayable ? firstPlayable.id : null);
   };
 
   const activeEvents = (active && ahead.eventsByCctv[active.id]) || [];
+
+  // ① 원인 한 줄 요약 · ② 정체 끝 CCTV
+  const evAhead = useMemo(
+    () => eventsAhead(ahead.events, traffic, direction, Object.values(ahead.eventsByCctv).flat()),
+    [ahead.events, ahead.eventsByCctv, traffic, direction]
+  );
+  const jamInfo = useMemo(() => jamAhead(traffic), [traffic]);
+  const weather = useWeather(loc.fix, scenario.data === "live"); // ⑧ 목업 주행에서는 부르지 않는다
+  const summary = useMemo(() => buildSummary({ events: evAhead, jam: jamInfo, hasTraffic: !!traffic, weather }), [evAhead, jamInfo, traffic, weather]);
+  const jamEnd = useMemo(
+    () => findJamEndCctv([...ahead.all, ...(nation || [])], traffic, jamInfo, direction),
+    [ahead.all, nation, traffic, jamInfo, direction]
+  );
+  const showJamEnd = jamEnd && jamEnd.cctv.id !== activeId;
+  // ⑩ 정체·돌발을 지나면 기록 탭에 남긴다
+  useTripRecorder({ fix: loc.fix, jam: jamInfo, events: evAhead, hasTraffic: !!traffic, road: (nav.route ? nav.road?.name : road?.name) || "" });
+
+  // 다른 탭(앞길·기록)과 나눌 "앞 상황"
+  const publish = useDrivePublish();
+  useEffect(() => {
+    publish({
+      summary,
+      weather,
+      events: evAhead,
+      jam: jamInfo,
+      jamEnd,
+      items,
+      activeId,
+      mode: ahead.mode,
+      traffic,
+      speed: loc.signalLost ? null : loc.fix?.speed ?? null,
+      destination: nav.destination || null,
+      remainingKm: nav.remainingKm,
+      routeDurationMin: nav.route?.duration != null ? Math.round(nav.route.duration / 60) : null,
+      updatedAt: ahead.refreshedAt,
+    });
+  }, [publish, summary, weather, evAhead, jamInfo, jamEnd, items, activeId, ahead.mode, traffic, loc.fix, loc.signalLost, nav.destination, nav.remainingKm, nav.route, ahead.refreshedAt]);
   const hasEvents = Object.keys(ahead.eventsByCctv).length > 0;
   const noHeading = !loc.fix; // 위치 자체가 아직 없음(흐름 4단계)
   const nearby = ahead.mode === "nearby";
@@ -537,31 +884,6 @@ export default function DrivePage() {
   // ── 안내 카드 문구 ──
   const speed = loc.signalLost ? null : loc.fix?.speed;
   const onRoute = !!nav.route;
-  const roadName = onRoute ? nav.road?.name : road?.name;
-  const dirText = onRoute
-    ? `${nav.destination.name}까지 ${nav.remainingKm != null ? nav.remainingKm.toFixed(1) : "-"}km`
-    : road && direction
-      ? direction === "down"
-        ? road.downLabel
-        : road.upLabel
-      : loc.heading != null
-        ? `${compassLabel(loc.heading)}으로 이동 중`
-        : null;
-  const guideSub = [roadName || "현재 도로 확인 중", dirText].filter(Boolean).join(" · ");
-  const guideTitle = noHeading
-    ? "내 위치 확인 중"
-    : ahead.error
-      ? "교통정보 연결 안 됨"
-      : nearby
-        ? "방향 확인 중"
-        : active
-          ? onRoute
-            ? `경로 위 CCTV ${items.length}곳`
-            : "앞쪽 CCTV 보는 중"
-          : empty
-            ? "앞쪽 CCTV 없음"
-            : "CCTV 찾는 중";
-  const jam = onRoute ? nav.congestion : null;
   const secs = ahead.secondsLeft ?? Math.round(AHEAD.refreshMs / 1000);
   const progress = Math.round((1 - secs / (AHEAD.refreshMs / 1000)) * 100);
   const scope = nearby ? "주변" : onRoute ? "경로 위" : "앞쪽";
@@ -600,6 +922,8 @@ export default function DrivePage() {
   const sheet = sheetOpen ? (
     <DestinationSheet
       near={loc.fix}
+      heading={loc.heading}
+      cctvs={nation || ahead.all}
       data={scenario.data}
       onClose={() => setSheetOpen(false)}
       onPick={(d) => {
@@ -638,39 +962,70 @@ export default function DrivePage() {
         )}
       </MapLayer>
 
-      <Guide ref={guideRef}>
-        <GuideHead>
-          <DirTile aria-hidden="true">
-            {nearby || noHeading ? <FiNavigation size={26} color="#fff" /> : <FiArrowUp size={30} color="#fff" strokeWidth={2.6} />}
-          </DirTile>
-          <GuideText>
-            <small>{guideSub}</small>
-            <b>{guideTitle}</b>
-          </GuideText>
-          <RoundBtn type="button" aria-label="앱 정보와 설정" onClick={() => navigate("/info")}>
-            <FiInfo size={20} />
-          </RoundBtn>
-        </GuideHead>
+      <Guide ref={guideRef} $clear={!!active}>
 
-        {jam ? (
-          <GuideNote $dot={theme.colors.traffic[jam.state]} role="status">
-            <i aria-hidden="true" />
-            {jam.startKm < 0.1 ? "지금부터" : `${jam.startKm < 1 ? `${Math.round(jam.startKm * 10) * 100}m` : `${jam.startKm.toFixed(1)}km`} 앞부터`}{" "}
-            {jam.lengthKm < 1 ? `${Math.max(100, Math.round(jam.lengthKm * 10) * 100)}m` : `${jam.lengthKm.toFixed(1)}km`} {TRAFFIC_LABEL[jam.state]}
-            {jam.speed != null ? ` · 평균 ${jam.speed}km/h` : ""}
-          </GuideNote>
-        ) : null}
         {nearby && !noHeading ? <GuideNote role="status">아직 진행 방향을 몰라 주변 CCTV를 가까운 순으로 보여 드려요. 차가 움직이면 앞쪽 CCTV만 골라요.</GuideNote> : null}
         {ahead.stale ? <GuideNote role="status">교통정보를 새로 받지 못해 {staleSec}초 전 목록을 보여 드려요.</GuideNote> : null}
 
         {active ? (
-          <Video>
+          <>
+          <Video
+            ref={videoRef}
+            $full={full}
+            role={full ? "dialog" : undefined}
+            aria-label={full ? "CCTV 전체 화면" : undefined}
+            // 영상을 누르면 전체 화면(위에 띄운 버튼은 각자 동작)
+            onClick={(e) => !full && !e.target.closest("button") && setFullTap(true)}
+          >
             <CctvPlayer
-              cctv={active}
+              cctv={visible ? active : null}
+              full={full}
+              reserveRight={!full}
               willFail={scenario.brokenFeeds && !!active?.broken}
               blocked={activeEvents.some((e) => e.type === "accident")}
               onError={handleError}
             />
+            {/* 전체 화면: 통과 시각·전환 버튼을 영상 위에 띄운다(일반 화면은 영상 아래 조작 줄) */}
+            {full && eta ? (
+              <Eta $full aria-live="polite">
+                {eta.dist} {eta.label}
+                {eta.when ? (
+                  <>
+                    {" · "}
+                    <b>{eta.when}</b>
+                  </>
+                ) : null}
+                {activeIdx >= 0 ? <small>{activeIdx + 1}/{playable.length}</small> : null}
+              </Eta>
+            ) : null}
+            {full && canStep ? (
+              <>
+                <OverlayBtn type="button" aria-label="이전 CCTV" style={{ left: 8, top: "50%", marginTop: -22 }} onClick={() => step(-1)}>
+                  <FiChevronLeft size={24} />
+                </OverlayBtn>
+                <OverlayBtn type="button" aria-label="다음 CCTV" style={{ right: 8, top: "50%", marginTop: -22 }} onClick={() => step(1)}>
+                  <FiChevronRight size={24} />
+                </OverlayBtn>
+              </>
+            ) : null}
+            {/* 공유 · 전체 화면(닫기) — 일반 화면은 영상 오른쪽 아래, 전체 화면은 오른쪽 위 */}
+            <OverlayBtn
+              type="button"
+              aria-label="이 장면 공유"
+              style={full ? { right: 62, top: "calc(env(safe-area-inset-top) + 42px)" } : { right: 50, bottom: 6, width: 36, height: 36, borderRadius: 10 }}
+              onClick={shareScene}
+            >
+              <FiShare2 size={full ? 20 : 16} />
+            </OverlayBtn>
+            {full ? (
+              <OverlayBtn type="button" aria-label="전체 화면 닫기" style={{ right: 10, top: "calc(env(safe-area-inset-top) + 42px)" }} onClick={closeFull}>
+                <FiX size={22} />
+              </OverlayBtn>
+            ) : (
+              <OverlayBtn type="button" aria-label="전체 화면으로 보기" style={{ right: 8, bottom: 6, width: 36, height: 36, borderRadius: 10 }} onClick={() => setFullTap(true)}>
+                <FiMaximize2 size={16} />
+              </OverlayBtn>
+            )}
             {pickedByUser && firstPlayable ? (
               <BackToAuto type="button" onClick={backToAuto}>
                 <FiSkipForward size={16} aria-hidden="true" />
@@ -678,6 +1033,47 @@ export default function DrivePage() {
               </BackToAuto>
             ) : null}
           </Video>
+          {!full ? (
+            <Controls>
+              <button type="button" aria-label="이전 CCTV" disabled={!canStep} style={canStep ? undefined : { visibility: "hidden" }} onClick={() => step(-1)}>
+                <FiChevronLeft size={20} />
+              </button>
+              <div>
+                <p aria-live="polite">
+                  <b>{eta?.dist}</b> {eta?.label}
+                  {eta?.when ? ` · ${eta.when}` : ""}
+                </p>
+                {playable.length > 1 ? (
+                  <Dots aria-label={activeIdx >= 0 ? `${playable.length}곳 중 ${activeIdx + 1}번째` : undefined}>
+                    {playable.map((c) => (
+                      <i key={c.id} data-on={c.id === activeId} />
+                    ))}
+                  </Dots>
+                ) : null}
+              </div>
+              <button type="button" aria-label="다음 CCTV" disabled={!canStep} style={canStep ? undefined : { visibility: "hidden" }} onClick={() => step(1)}>
+                <FiChevronRight size={20} />
+              </button>
+            </Controls>
+          ) : null}
+          {!full && summary.tone !== "unknown" ? (
+            <SummaryBar $tone={SUMMARY_TONE[summary.tone](theme)}>
+              <button type="button" onClick={() => setDriverView(true)} aria-label={`${summary.title}. ${summary.sub}. 누르면 운전자에게 크게 보여 줘요`}>
+                <i aria-hidden="true" />
+                <span style={{ minWidth: 0 }}>
+                  <b>{summary.title}</b>
+                  {summary.sub ? <small>{summary.sub}</small> : null}
+                </span>
+              </button>
+              {showJamEnd ? (
+                <button type="button" onClick={() => select(jamEnd.cctv.id, jamEnd.cctv)} aria-label={`정체가 풀리는 곳 CCTV 보기, ${jamEnd.cctv.name}`}>
+                  <FiFastForward size={18} aria-hidden="true" />
+                  풀리는 곳
+                </button>
+              ) : null}
+            </SummaryBar>
+          ) : null}
+          </>
         ) : (
           <None role="status">
             {none.icon}
@@ -703,7 +1099,7 @@ export default function DrivePage() {
 
       {!noHeading ? (
         <>
-          <Speed style={{ bottom: sideBottom }} aria-label={speed != null ? `시속 ${Math.round(speed)}킬로미터` : "속도 확인 중"}>
+          <Speed style={{ bottom: sideBottom + 26 }} aria-label={speed != null ? `시속 ${Math.round(speed)}킬로미터` : "속도 확인 중"}>
             <b>{speed != null ? Math.round(speed) : "--"}</b>
             <small>km/h</small>
           </Speed>
@@ -719,29 +1115,37 @@ export default function DrivePage() {
       ) : null}
 
       <BottomBar ref={barRef}>
-        <DestBtn>
-          <button type="button" onClick={() => setSheetOpen(true)}>
-            <FiFlag size={20} aria-hidden="true" />
-            <span style={{ minWidth: 0 }}>
-              <b>{nav.destination ? nav.destination.name : "목적지 넣기"}</b>
-              <small>
-                {!nav.destination
-                  ? "선택 · 경로 위 CCTV만 정확하게 골라요"
-                  : nav.status === "loading"
+        <SearchBar $set={!!nav.destination}>
+          <button type="button" onClick={() => setSheetOpen(true)} aria-label={nav.destination ? `목적지 ${nav.destination.name}, 바꾸기` : "목적지 검색"}>
+            {nav.destination ? <FiFlag size={20} aria-hidden="true" /> : <FiSearch size={21} strokeWidth={2.4} aria-hidden="true" />}
+            {nav.destination ? (
+              <span style={{ minWidth: 0 }}>
+                <b>{nav.destination.name}</b>
+                <small>
+                  {nav.status === "loading"
                     ? "경로 찾는 중"
                     : nav.status === "error"
                       ? "경로를 찾지 못해 진행 방향 기준으로 골라요"
-                      : "경로 위 CCTV만 보여 드려요"}
-              </small>
-            </span>
+                      : nav.remainingKm != null
+                        ? `${nav.remainingKm.toFixed(1)}km 남음 · 경로 위 CCTV만 보여 드려요`
+                        : "경로 위 CCTV만 보여 드려요"}
+                </small>
+              </span>
+            ) : (
+              <span className="ph">어디로 가세요?</span>
+            )}
           </button>
           {nav.destination ? (
-            <button type="button" onClick={() => setDestination(null)}>
-              취소
+            <button type="button" aria-label="목적지 취소" onClick={() => setDestination(null)}>
+              <FiX size={20} />
             </button>
           ) : null}
-        </DestBtn>
+        </SearchBar>
       </BottomBar>
+
+      {driverView ? <DriverView summary={summary} onClose={() => setDriverView(false)} /> : null}
+
+      {record ? <RecordSheet snapshot={record} onClose={() => setRecord(null)} /> : null}
 
       {listOpen ? (
         <>
