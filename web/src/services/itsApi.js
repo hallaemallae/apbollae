@@ -4,7 +4,8 @@
 // 실제 연결 시 (기능흐름도 5번 슬라이드):
 //   앱 → Firebase Functions 프록시 GET /its/around?lat=&lng=&radiusKm=6
 //       → (60초 캐시 미스면) ITS cctvInfo + eventInfo 호출, 인증키는 서버에만
-//   응답: { cctvs:[{id,name,lat,lng,url}], events:[…], at, stale }
+//   응답: { cctvs:[{id,name,lat,lng,url,source}], events:[…], at, stale }
+//   source: "its"(국가교통정보센터) | "utic"(경찰청 도시교통정보센터 — 로컬 프록시가 UTIC_API_KEY 있을 때 섞는다)
 //   cctvInfo 는 cctvType=4(HLS·HTTPS) 로 부른다. coordx=경도, coordy=위도.
 //   eventInfo 의 eventType 은 한글이다 → 앱 분류로 바꿀 때 넉넉히 받는다:
 //     "교통사고" → accident, "공사"·"작업" → work, 그 외(기상·재난·기타돌발) → control
@@ -75,7 +76,7 @@ export async function fetchNationCctvs({ data = "mock" } = {}) {
       return r.json();
     })
     .then((j) => {
-      const list = j.cctvs.map(([name, lat, lng, id]) => ({ id, name, lat, lng }));
+      const list = j.cctvs.map(([name, lat, lng, id, source]) => ({ id, name, lat, lng, source: source || "its" }));
       nation = { at: Date.now(), data, list, pending: null };
       return list;
     })

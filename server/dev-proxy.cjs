@@ -7,6 +7,7 @@
 //         http://localhost:8787/api/route?olat=&olng=&dlat=&dlng=&heading=   카카오모빌리티 자동차 길찾기
 //         http://localhost:8787/api/its/cctvs   전국 CCTV 가벼운 목록(지도 표시용 — 이름·좌표만, gzip). around 와 같은 100분 캐시
 //         http://localhost:8787/api/its/cctv?id=  CCTV 한 대(영상 주소 포함) — 지도에서 선별 밖 CCTV 를 눌렀을 때
+//           ↑ 세 주소 모두 UTIC_API_KEY 가 있으면 경찰청 UTIC 도시 CCTV 를 섞는다(source: "utic", 하루 1회 받아 server/.utic-cctvs.json 에 저장)
 //         http://localhost:8787/api/links?tile=<ty>_<tx>   표준노드링크 타일(맵매칭용, ITS 호출 없음)
 //           타일은 server/nodelink/build-tiles.py 로 data/nodelink/tiles 에 만들어 둔다
 //
@@ -18,13 +19,15 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
-const { inKorea, createLoaders, createAround } = require("./functions/itsCore");
+const { inKorea, inBox, cellOf, createLoaders, createAround } = require("./functions/itsCore");
+const { createUticList } = require("./functions/uticCore");
 const { searchPlaces, getRoute } = require("./functions/kakaoCore");
 
 const PORT = Number(process.env.PROXY_PORT || 8787);
 const LIMIT = Number(process.env.ITS_MONTHLY_LIMIT || 900);
 const USAGE_FILE = path.join(__dirname, ".its-usage.json");
 const TILE_DIR = path.join(__dirname, "..", "data", "nodelink", "tiles");
+const UTIC_FILE = path.join(__dirname, ".utic-cctvs.json");
 
 if (!process.env.ITS_API_KEY) {
   console.error("server/.env 에 ITS_API_KEY 가 없어요.");
@@ -56,6 +59,17 @@ const around = createAround({
   usage: async () => readUsage()[monthKey()] || 0,
   limit: LIMIT,
 });
+
+// UTIC 도시 CCTV — 키가 없으면 ITS 만 쓴다. 허용 IP(학교 망) 밖에서는 저장본만 쓴다(uticCore.js 참고)
+const utic = process.env.UTIC_API_KEY ? createUticList({ apiKey: () => process.env.UTIC_API_KEY, file: UTIC_FILE }) : null;
+const noUtic = { cctvs: [], stale: false };
+
+/** ITS 결과에 UTIC CCTV 를 붙인다. UTIC 이 비어도 ITS 결과는 그대로 */
+async function withUtic(data, pickItems) {
+  if (!utic) return data;
+  const u = await utic().catch(() => noUtic);
+  return { ...data, cctvs: [...data.cctvs, ...pickItems(u.cctvs)] };
+}
 
 http
   .createServer(async (req, res) => {
@@ -112,14 +126,14 @@ http
 
     if (/\/its\/cctvs?\/?$/.test(url.pathname)) {
       try {
-        const data = await around.all();
+        const data = await withUtic(await around.all(), (x) => x);
         if (url.pathname.replace(/\/$/, "").endsWith("/cctv")) {
           const c = data.cctvs.find((x) => x.id === url.searchParams.get("id"));
           return c ? send(200, { cctv: c, stale: data.stale }) : send(404, { error: "no_cctv" });
         }
         // 영상 주소를 빼면 3.5MB → 수백 KB. [이름, 위도, 경도] (id 는 앱이 같은 규칙으로 만든다)
         const r5 = (n) => Math.round(n * 1e5) / 1e5;
-        const slim = { at: data.at, stale: data.stale, cctvs: data.cctvs.map((c) => [c.name, r5(c.lat), r5(c.lng), c.id]) };
+        const slim = { at: data.at, stale: data.stale, cctvs: data.cctvs.map((c) => [c.name, r5(c.lat), r5(c.lng), c.id, c.source]) };
         const body = zlib.gzipSync(JSON.stringify(slim));
         res.writeHead(200, {
           "Content-Type": "application/json; charset=utf-8",
@@ -140,7 +154,7 @@ http
     if (!inKorea(lat, lng)) return send(400, { error: "bad_position" });
 
     try {
-      const data = await around(lat, lng);
+      const data = await withUtic(await around(lat, lng), (x) => inBox(x, cellOf(lat, lng).box));
       console.log(`[api] ${lat.toFixed(3)},${lng.toFixed(3)} → CCTV ${data.cctvs.length} · 돌발 ${data.events.length}${data.stale ? " (stale)" : ""}`);
       send(200, data);
     } catch (err) {
@@ -152,4 +166,9 @@ http
     console.log(`앞볼래 로컬 프록시: http://localhost:${PORT}/api/its/around  (이번 달 ITS 호출 ${used}/${LIMIT})`);
     console.log(`  표준노드링크 타일: ${fs.existsSync(TILE_DIR) ? "있음" : "없음 — python server/nodelink/build-tiles.py"}`);
     console.log(`  목적지·경로(카카오): ${process.env.KAKAO_REST_KEY ? "켜짐" : "꺼짐 — server/.env 에 KAKAO_REST_KEY 없음"}`);
+    if (!utic) return console.log("  UTIC 도시 CCTV: 꺼짐 — server/.env 에 UTIC_API_KEY 없음");
+    const st = utic.status();
+    console.log(
+      `  UTIC 도시 CCTV: ${st.savedAt ? `저장본 ${st.count}개(재생 가능 ${st.playable}) · ${new Date(st.savedAt).toLocaleString("ko-KR")}` : "저장본 없음 — 학교 망에서 node server/check-utic.mjs"}`
+    );
   });

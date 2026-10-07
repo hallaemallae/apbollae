@@ -1,7 +1,7 @@
 // ITS 프록시 공통 로직 — 로컬 개발 프록시(server/dev-proxy.cjs)와 Cloud Functions(index.js)가 같이 쓴다.
 // 저장소(캐시·사용량)는 바깥에서 넣어 준다: 로컬은 메모리+파일, 서버는 Firestore.
 //
-// 응답 모양: { cctvs:[{id,name,lat,lng,url,roadName}], events:[{id,type,label,lat,lng,roadName,direction,lanes,message,startedAt}], at, stale }
+// 응답 모양: { cctvs:[{id,name,lat,lng,url,roadName,source}], events:[{id,type,label,lat,lng,roadName,direction,lanes,message,startedAt}], at, stale }
 
 const ITS_BASE = "https://openapi.its.go.kr:9443";
 const CELL = 0.1; // 격자 한 칸 ≈ 11km
@@ -29,6 +29,12 @@ function cellOf(lat, lng) {
 /** 국내 좌표인지 */
 const inKorea = (lat, lng) => lat >= 33 && lat <= 39.5 && lng >= 124 && lng <= 132;
 
+/** 칸 조회 범위(box 문자열) 안의 CCTV 만 */
+function inBox(items, box) {
+  const q = Object.fromEntries(box.split("&").map((kv) => kv.split("=")).map(([k, v]) => [k, Number(v)]));
+  return items.filter((c) => c.lng >= q.minX && c.lng <= q.maxX && c.lat >= q.minY && c.lat <= q.maxY);
+}
+
 function normCctv(c) {
   const name = String(c.cctvname || "").trim();
   const road = /^\[([^\]]+)\]/.exec(name);
@@ -39,6 +45,7 @@ function normCctv(c) {
     lng: Number(c.coordx),
     url: c.cctvurl,
     roadName: road ? road[1].trim() : null,
+    source: "its",
   };
 }
 
@@ -152,12 +159,6 @@ function createAround({ loaders, store, usage, limit, log = console }) {
     }
   }
 
-  /** 칸 조회 범위(box 문자열) 안의 CCTV 만 */
-  function inBox(items, box) {
-    const q = Object.fromEntries(box.split("&").map((kv) => kv.split("=")).map(([k, v]) => [k, Number(v)]));
-    return items.filter((c) => c.lng >= q.minX && c.lng <= q.maxX && c.lat >= q.minY && c.lat <= q.maxY);
-  }
-
   async function around(lat, lng) {
     const cell = cellOf(lat, lng);
     const [c, e] = await Promise.all([cached("cctvAll", NATION), cached("event", cell)]);
@@ -173,4 +174,4 @@ function createAround({ loaders, store, usage, limit, log = console }) {
   return around;
 }
 
-module.exports = { cellOf, inKorea, normCctv, normEvent, createLoaders, createAround, TTL, CALLS };
+module.exports = { cellOf, inKorea, inBox, normCctv, normEvent, createLoaders, createAround, TTL, CALLS };

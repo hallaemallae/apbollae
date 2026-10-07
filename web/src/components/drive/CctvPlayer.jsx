@@ -4,11 +4,18 @@
 // cctv.url 이 있으면(실제 ITS) HLS 영상을 재생하고, 없으면(목업) MockFeed 를 그린다.
 //  - Safari·iOS WebView 는 HLS 를 직접 재생, 그 밖(Chrome·Android WebView)은 hls.js 로 재생
 //  - ITS 영상 서버는 CORS 를 허용한다(Access-Control-Allow-Origin: *, 2026-10-03 확인)
+//  - 출처 줄은 CCTV 출처(cctv.source)마다 기관 이용조건대로 쓴다. UTIC 은 "경찰청 도시교통정보센터(UTIC) 제공" 표기가 의무다.
 import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import Hls from "hls.js";
 import { FiVideoOff } from "react-icons/fi";
 import MockFeed from "./MockFeed";
+
+// 출처 표기 — source 가 없으면(목업 포함) ITS
+const SOURCE_LABEL = {
+  its: "출처: 국가교통정보센터(ITS)",
+  utic: "경찰청 도시교통정보센터(UTIC) 제공",
+};
 
 const CONNECT_MS = 900;
 const FAIL_MS = 1800;
@@ -176,6 +183,7 @@ const Bottom = styled.div`
   bottom: 0;
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   padding: 18px 12px 8px;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.5));
   color: rgba(255, 255, 255, 0.85);
@@ -268,7 +276,10 @@ export default function CctvPlayer({ cctv, willFail, blocked, onError, empty }) 
               {now.getFullYear()}-{pad(now.getMonth() + 1)}-{pad(now.getDate())} {pad(now.getHours())}:
               {pad(now.getMinutes())}:{pad(now.getSeconds())}
             </span>
-            <span>출처: 국가교통정보센터(ITS){live ? "" : " · 모의 영상"}</span>
+            <span style={{ textAlign: "right" }}>
+              {SOURCE_LABEL[cctv.source] || SOURCE_LABEL.its}
+              {live ? "" : " · 모의 영상"}
+            </span>
           </Bottom>
         </>
       )}
