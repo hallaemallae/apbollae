@@ -19,6 +19,7 @@ import {
   FiCode,
   FiLogOut,
   FiUserX,
+  FiSliders,
 } from "react-icons/fi";
 import { useFlow } from "../context/FlowContext";
 import { useThemeMode } from "../context/ThemeContext";
@@ -26,6 +27,7 @@ import { useAuth } from "../context/AuthContext";
 import { authErrorMessage, PROVIDER_LABEL } from "../services/authService";
 import CheckCircle from "../components/common/CheckCircle";
 import { showToast } from "../utils/toast";
+import { openScenarioPanel } from "../components/dev/ScenarioPanel";
 
 const APP_VERSION = "0.1.0";
 
@@ -439,6 +441,21 @@ export default function InfoPage() {
                 </DangerBtn>
               </Withdraw>
             </Fold>
+          </List>
+        </Section>
+      ) : null}
+
+      {/* 흐름 점검 패널 — 시연 영상에 안 보이게 주행 화면 버튼 대신 여기서 연다. ?dev=0 이면 패널이 없어 메뉴도 숨긴다 */}
+      {new URLSearchParams(window.location.search).get("dev") !== "0" ? (
+        <Section>
+          <h2>개발</h2>
+          <List>
+            <Item type="button" onClick={openScenarioPanel}>
+              <Ico aria-hidden="true" $muted><FiSliders size={18} /></Ico>
+              <span>흐름 점검</span>
+              <em>시나리오·위치 조작</em>
+              <FiChevronRight size={20} />
+            </Item>
           </List>
         </Section>
       ) : null}

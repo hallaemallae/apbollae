@@ -61,7 +61,7 @@ const Points = styled.ol`
 /** 권한 요청 — 시뮬레이션 / RN 셸 / 브라우저 */
 function requestLocation({ scenario, bridge }) {
   if (scenario.source === "sim") {
-    return new Promise((r) => setTimeout(() => r(!scenario.denyPermission), 500));
+    return new Promise((r) => setTimeout(() => r(!scenario.denyPermission), 200));
   }
   if (bridge?.isWebView) {
     return new Promise((r) => {

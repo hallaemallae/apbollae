@@ -1,6 +1,6 @@
 // src/services/routeApi.js
 // 목적지 검색·자동차 경로. 실제는 로컬 프록시(/api/place, /api/route → 카카오), 목업은 경부선 시뮬레이션 경로.
-import { ROUTE } from "../mock/route";
+import { ROUTE, ROUTE_PATH, ROUTE_PATH_AT } from "../mock/route";
 import { distanceKm } from "../utils/aheadFilter";
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -33,13 +33,15 @@ function mockRoute(origin, destination) {
       name: "경부고속도로",
       state,
       speed: MOCK_SPEED[state],
+      // 지점 사이는 실제 도로 선(ROUTE_PATH)으로 잇는다. 첫 구간은 지금 위치에서 시작
       coords: [
-        [i === a ? origin.lat : nodes[i].lat, i === a ? origin.lng : nodes[i].lng],
-        [nodes[i + 1].lat, nodes[i + 1].lng],
+        ...(i === a ? [[origin.lat, origin.lng]] : []),
+        ...ROUTE_PATH.slice(ROUTE_PATH_AT[i] + (i === a ? 1 : 0), ROUTE_PATH_AT[i + 1] + 1),
       ],
     });
   }
-  const distance = roads.reduce((s, r) => s + distanceKm({ lat: r.coords[0][0], lng: r.coords[0][1] }, { lat: r.coords[1][0], lng: r.coords[1][1] }), 0);
+  const pt = ([lat, lng]) => ({ lat, lng });
+  const distance = roads.reduce((s, r) => s + r.coords.slice(1).reduce((d, c, k) => d + distanceKm(pt(r.coords[k]), pt(c)), 0), 0);
   return { distance: Math.round(distance * 1000), duration: Math.round((distance / 60) * 3600), roads };
 }
 

@@ -337,6 +337,13 @@ export default function KakaoMiniMap(props) {
       );
     });
 
+    // 위치 정확도 원 — 오차가 크면(실내·와이파이 기반 위치) 실제 위치가 이 원 안 어딘가임을 보여 준다
+    if (position.accuracy != null && position.accuracy > 20) {
+      const acc = new kakao.maps.Circle({ center: LL(position), radius: position.accuracy, strokeWeight: 1, strokeColor: "#3D7BE0", strokeOpacity: 0.5, fillColor: "#3D7BE0", fillOpacity: 0.12 });
+      acc.setMap(map);
+      layer.push(acc);
+    }
+
     // 내 위치 — 진행 방향 화살표(방향을 모르면 점)
     overlay(
       position,

@@ -6,13 +6,14 @@
 //               "이 경로로 CCTV 보기"로 정한다(앞볼래는 길 안내를 하지 않는다 — 고른 경로 위 CCTV 만 보여 준다).
 // 내비 전용인 카테고리 칩(휴게소·주유소)과 음성 검색은 넣지 않았다. 옅은 색 면은 쓰지 않는다(흰 면 + 선).
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import styled from "styled-components";
+import styled, { css, keyframes } from "styled-components";
 import { FiChevronLeft, FiMapPin, FiHome, FiBriefcase, FiClock, FiX, FiPlus, FiCheck } from "react-icons/fi";
 import { searchPlaces, fetchRoute } from "../../services/routeApi";
 import { usePlaces, addRecent, removeRecent, setFavorite } from "../../services/placeStore";
 import { distanceKm, formatDistance } from "../../utils/aheadFilter";
 import { buildRoute, selectAlongRoute, ROUTE_OPTS } from "../../utils/routeFilter";
 import { trafficBands } from "../../utils/situation";
+import RouteCompareMap from "./RouteCompareMap";
 
 const ROUTE_OPTIONS = [
   { key: "recommend", label: "추천" },
@@ -314,8 +315,36 @@ const Trip = styled.div`
   }
 `;
 
+/* 경로 카드가 차례로 올라온다(1c). 기기에서 "동작 줄이기"를 켜면 GlobalStyle 이 꺼 준다 */
+const riseIn = keyframes`from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; }`;
+const shimmer = keyframes`from { background-position: 100% 0; } to { background-position: -100% 0; }`;
+const rise = (i) => css`
+  animation: ${riseIn} 320ms cubic-bezier(0.2, 0.8, 0.2, 1) ${i * 70}ms both;
+`;
+
+/* 경로를 받는 동안 — 카드 모양 자리표시 */
+const Skeleton = styled.div`
+  height: 104px;
+  margin: 0 16px 8px;
+  border-radius: 16px;
+  ${card}
+  background-image: linear-gradient(
+    90deg,
+    transparent 30%,
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "rgba(17,24,39,0.05)")} 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: ${shimmer} 1.2s linear infinite;
+`;
+
 const Route = styled.button`
   display: block;
+  ${({ $i }) => rise($i)}
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.12s;
+  &:active {
+    transform: scale(0.98);
+  }
   width: calc(100% - 32px);
   margin: 0 16px 8px;
   padding: 14px 16px;
@@ -375,6 +404,11 @@ const Route = styled.button`
 
 const Go = styled.button`
   display: flex;
+  ${({ $i }) => rise($i)}
+  transition: transform 0.12s;
+  &:active {
+    transform: scale(0.98);
+  }
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -616,14 +650,21 @@ function Compare({ place, near, heading, data, cctvs, onBack, onGo }) {
   const [routes, setRoutes] = useState(null); // [{ key, label, route }]
   const [error, setError] = useState(null);
   const [pick, setPick] = useState("recommend");
+  // 출발점은 처음 잡힌 위치로 고정한다 — near 는 1초마다 바뀌어, 그대로 쓰면 길찾기(1~2초)가 끝나기 전에 계속 다시 시작된다
+  const [origin, setOrigin] = useState(near);
+  const [originHeading] = useState(heading);
+  useEffect(() => {
+    if (!origin && near) setOrigin(near);
+  }, [origin, near]);
 
   useEffect(() => {
-    if (!near) {
+    if (!origin) {
       setError("내 위치를 아직 몰라요. 위치가 잡힌 뒤 다시 골라 주세요.");
       return undefined;
     }
+    setError(null);
     let alive = true;
-    Promise.allSettled(ROUTE_OPTIONS.map((o) => fetchRoute(near, place, heading, { data, opt: o.key }))).then((res) => {
+    Promise.allSettled(ROUTE_OPTIONS.map((o) => fetchRoute(origin, place, originHeading, { data, opt: o.key }))).then((res) => {
       if (!alive) return;
       const list = [];
       res.forEach((r, i) => {
@@ -641,7 +682,7 @@ function Compare({ place, near, heading, data, cctvs, onBack, onGo }) {
     return () => {
       alive = false;
     };
-  }, [near, place, heading, data]);
+  }, [origin, place, originHeading, data]);
 
   // 경로마다 경로 위 CCTV 수·막힌 구간 수
   const stats = useMemo(() => {
@@ -676,12 +717,19 @@ function Compare({ place, near, heading, data, cctvs, onBack, onGo }) {
           </div>
         </Trip>
 
+        {origin ? <RouteCompareMap routes={routes} pick={pick} origin={origin} dest={place} onPick={setPick} /> : null}
+
         {error ? <Help role="alert">{error}</Help> : null}
-        {!routes && !error ? <Help>경로를 비교하는 중이에요</Help> : null}
-        {routes?.map((r) => {
+        {!routes && !error ? (
+          <div role="status" aria-label="경로를 비교하는 중이에요">
+            <Skeleton />
+            <Skeleton />
+          </div>
+        ) : null}
+        {routes?.map((r, i) => {
           const st = stats[r.key] || {};
           return (
-            <Route key={r.key} type="button" $on={pick === r.key} aria-pressed={pick === r.key} onClick={() => setPick(r.key)}>
+            <Route key={r.key} type="button" $i={i} $on={pick === r.key} aria-pressed={pick === r.key} onClick={() => setPick(r.key)}>
               <div className="top">
                 <span className="tag">{r.label}</span>
                 <span className="meta">
@@ -706,7 +754,7 @@ function Compare({ place, near, heading, data, cctvs, onBack, onGo }) {
           );
         })}
         {routes?.length ? (
-          <Go type="button" onClick={() => onGo(pick)}>
+          <Go type="button" $i={routes.length} onClick={() => onGo(pick)}>
             <FiCheck size={20} aria-hidden="true" />이 경로로 CCTV 보기
           </Go>
         ) : null}

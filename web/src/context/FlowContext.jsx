@@ -10,7 +10,7 @@ export function FlowProvider({ children }) {
   const [passenger, setPassenger] = useState(!!REVIEW_MOCK?.passenger);
   const [permission, setPermission] = useState(REVIEW_MOCK?.permission || "unknown"); // unknown | granted | denied
   const [dataNoticeSeen, setDataNoticeSeen] = useState(!!REVIEW_MOCK?.notice);
-  const [destination, setDestination] = useState(null); // { name, address, lat, lng } — 선택 기능
+  const [destination, setDestination] = useState(REVIEW_MOCK?.destination || null); // { name, address, lat, lng } — 선택 기능
 
   const resetDrive = useCallback(() => {
     setPassenger(false);

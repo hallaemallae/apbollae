@@ -9,6 +9,9 @@ import { resolveHeading } from "../utils/heading";
 
 const TRAIL_MAX = 120;
 const SIGNAL_LOST_MS = 5000;
+// 정확도(m)가 이보다 나쁜 점(와이파이·기지국 기반 대략 위치, 튀는 값)은 최근에 더 좋은 점이 있으면 버린다
+const POOR_ACCURACY_M = 100;
+const KEEP_GOOD_MS = 15000;
 
 export default function useLocationStream(active) {
   const bridge = useBridge();
@@ -27,6 +30,15 @@ export default function useLocationStream(active) {
     if (!active) return undefined;
 
     const push = (fix) => {
+      const last = trailRef.current[trailRef.current.length - 1];
+      if (
+        fix.accuracy != null &&
+        fix.accuracy > POOR_ACCURACY_M &&
+        last?.accuracy != null &&
+        last.accuracy < fix.accuracy &&
+        Date.now() - lastFixAtRef.current < KEEP_GOOD_MS
+      )
+        return;
       lastFixAtRef.current = Date.now();
       trailRef.current = [...trailRef.current.slice(-TRAIL_MAX + 1), fix];
     };
@@ -47,7 +59,7 @@ export default function useLocationStream(active) {
       if (bridge?.isWebView) {
         bridge.sendToApp("START_LOCATION", { intervalMs: 1000 });
         const off = bridge.subscribe("LOCATION_UPDATE", (p) =>
-          push({ lat: p.latitude, lng: p.longitude, heading: p.heading, speed: p.speed != null ? p.speed * 3.6 : null, t: p.timestamp || Date.now() })
+          push({ lat: p.latitude, lng: p.longitude, heading: p.heading, speed: p.speed != null ? p.speed * 3.6 : null, accuracy: p.accuracy ?? null, t: p.timestamp || Date.now() })
         );
         cleanupSource = () => {
           off();
@@ -61,6 +73,7 @@ export default function useLocationStream(active) {
               lng: pos.coords.longitude,
               heading: pos.coords.heading,
               speed: pos.coords.speed != null ? pos.coords.speed * 3.6 : null,
+              accuracy: pos.coords.accuracy ?? null,
               t: pos.timestamp,
             }),
           () => {},
@@ -69,7 +82,10 @@ export default function useLocationStream(active) {
         // 브라우저는 움직이지 않으면 새 위치를 거의 안 준다 — 마지막 값을 1초마다 다시 넣어 '신호 끊김'으로 오인하지 않게
         const keep = setInterval(() => {
           const last = trailRef.current[trailRef.current.length - 1];
-          if (last && Date.now() - last.t > 1500) push({ ...last, t: Date.now() });
+          if (last && Date.now() - last.t > 1500) {
+            lastFixAtRef.current = Date.now();
+            trailRef.current = [...trailRef.current.slice(-TRAIL_MAX + 1), { ...last, t: Date.now() }];
+          }
         }, 1000);
         cleanupSource = () => {
           navigator.geolocation.clearWatch(id);

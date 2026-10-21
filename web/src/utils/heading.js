@@ -8,6 +8,8 @@ import { bearingDeg, distanceKm } from "./aheadFilter";
 const MIN_SPEED_KMH = 10;
 const TRAIL_WINDOW_MS = 60_000;
 const TRAIL_MIN_KM = 0.05;
+const TRAIL_MAX_ACC_M = 50; // 정확도가 이보다 나쁜 점은 궤적 방향 계산에 쓰지 않는다(제자리 GPS 흔들림이 방향으로 보이지 않게)
+const precise = (p) => p.accuracy == null || p.accuracy <= TRAIL_MAX_ACC_M;
 
 /**
  * @param {Array<{lat,lng,heading,speed,t}>} trail  오래된 것 → 최신 순
@@ -26,10 +28,10 @@ export function resolveHeading(trail, lastValid, signalLost) {
     return { heading: fix.heading, source: "gps" };
   }
 
-  for (let i = trail.length - 2; i >= 0; i -= 1) {
+  for (let i = trail.length - 2; i >= 0 && precise(fix); i -= 1) {
     const p = trail[i];
     if (fix.t - p.t > TRAIL_WINDOW_MS) break;
-    if (distanceKm(p, fix) >= TRAIL_MIN_KM) {
+    if (precise(p) && distanceKm(p, fix) >= TRAIL_MIN_KM) {
       return { heading: bearingDeg(p, fix), source: "trail" };
     }
   }

@@ -3,6 +3,7 @@
 // mode 는 고른 값, resolved 는 지금 실제로 그리는 값(light | dark)이다.
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { isNight } from "../utils/sun";
+import { REVIEW_MOCK } from "../dev/reviewMock";
 
 const STORAGE_KEY = "apb.theme.mode";
 const MODES = ["auto", "light", "dark"];
@@ -10,6 +11,7 @@ const MODES = ["auto", "light", "dark"];
 const ThemeModeContext = createContext({ mode: "auto", resolved: "light", setMode: () => {}, toggleMode: () => {} });
 
 function readInitialMode() {
+  if (REVIEW_MOCK?.theme) return REVIEW_MOCK.theme; // 리뷰 허브 — 시간과 상관없이 밝게/어둡게 고정해서 본다
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (MODES.includes(saved)) return saved;

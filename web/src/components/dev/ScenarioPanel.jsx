@@ -1,14 +1,15 @@
 // src/components/dev/ScenarioPanel.jsx
 // 흐름 점검 패널 — 기능흐름도 1~9 단계 중 지금 위치, 발생 중인 예외(E1~E6)를 보여 주고
 // 시나리오 스위치로 예외를 일부러 일으킨다. 출시 빌드에서는 빼거나 ?dev=0 으로 숨긴다.
-import React, { useState } from "react";
+// 시연 영상에 걸리지 않게 화면 가장자리 버튼은 두지 않고, 내 정보 > 개발 > 흐름 점검에서 연다(openScenarioPanel).
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { FiSliders, FiX } from "react-icons/fi";
+import { FiX } from "react-icons/fi";
 import { useScenario } from "../../context/ScenarioContext";
 import { useFlow } from "../../context/FlowContext";
 import { useAuth } from "../../context/AuthContext";
-import { SPEED_PRESETS, teleport, resetTrip, jumpTrip, TRIP_START } from "../../services/simulator";
+import { SPEED_PRESETS, teleport, resetTrip, jumpTrip, tripStart, setTripStart, simPoint, placeTrip } from "../../services/simulator";
 import { NO_CCTV_INDEX } from "../../mock/route";
 import {
   useAccuracyLog,
@@ -46,27 +47,45 @@ const JUMPS = [
   [6, "금토JC(사고 직전)"],
 ];
 
-const Fab = styled.button`
-  position: fixed;
-  right: 0;
-  top: 58%;
-  z-index: 1800;
-  height: 42px;
-  padding: 0 12px 0 14px;
-  border-radius: 999px 0 0 999px;
-  border-right: none;
-  border: 1px solid #4A5259;
-  background: #F2F3F0;
-  color: #15191C;
+// 내 위치 임시로 바꾸기 — 자주 쓰는 출발지
+const PLACES = [
+  { label: "한성대학교", lat: 37.5826, lng: 127.0105 },
+  { label: "서울역", lat: 37.5547, lng: 126.9707 },
+  { label: "강남역", lat: 37.4979, lng: 127.0276 },
+  { label: "판교역", lat: 37.3948, lng: 127.1112 },
+  { label: "대전역", lat: 36.3324, lng: 127.4342 },
+  { label: "부산역", lat: 35.1151, lng: 129.0414 },
+];
+
+// 시연 흐름 — 경부고속도로로 부산 가는 길. 목업 데이터에서는 경로가 경부선 목업 끝(안성JC)까지만 이어진다
+const BUSAN = { name: "부산역", address: "부산 동구 중앙대로 206", lat: 35.1151, lng: 129.0414 };
+const DEMO_START = 1; // 잠원IC — 서울 시내를 지나 바로 고속도로 위에서 시작한다
+
+/** "37.55, 126.97" · "37.55 126.97" 같은 입력을 읽는다. 한국 범위를 벗어나면 null */
+function parseLatLng(text) {
+  const m = String(text).match(/(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  let lat = Number(m[1]);
+  let lng = Number(m[2]);
+  if (lat > 90) [lat, lng] = [lng, lat]; // 경도, 위도 순으로 붙여 넣었을 때
+  if (lat < 33 || lat > 39 || lng < 124 || lng > 132) return null;
+  return { lat, lng };
+}
+
+const Field = styled.form`
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 700;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  b {
-    font-family: ${({ theme }) => theme.fonts.numeric};
-    font-size: 16px;
+  gap: 6px;
+  margin-top: 8px;
+  input {
+    flex: 1;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1.5px solid #C9CEC9;
+    background: #fff;
+    color: #15191C;
+    font-size: 13.5px;
   }
 `;
 
@@ -168,23 +187,46 @@ const Ex = styled.span`
   font-weight: 700;
 `;
 
+const OPEN_EVENT = "apbollae:open-scenario-panel";
+
+/** 흐름 점검 패널을 연다 — 내 정보 화면의 개발 메뉴에서 부른다 */
+export function openScenarioPanel() {
+  window.dispatchEvent(new Event(OPEN_EVENT));
+}
+
 export default function ScenarioPanel() {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, []);
   const navigate = useNavigate();
   const { scenario, set, flowStatus } = useScenario();
-  const { resetDrive, setPermission } = useFlow();
+  const { resetDrive, setPermission, destination, setDestination } = useFlow();
   const auth = useAuth();
   const accuracy = useAccuracyLog();
+  const [start, setStart] = useState(tripStart);
+  const [coordText, setCoordText] = useState("");
 
-  if (!open) {
-    return (
-      <Fab type="button" onClick={() => setOpen(true)} aria-label="흐름 점검 패널 열기">
-        <FiSliders size={17} />
-        흐름 <b>{flowStatus.step}</b>
-        {flowStatus.exceptions.length ? <span style={{ color: "#E5483B" }}>{flowStatus.exceptions.join(" ")}</span> : null}
-      </Fab>
-    );
-  }
+  // 출발지를 옮기고 '경로 주행'으로 바꾼다 — 목적지를 넣기 전까지 그 자리에 서 있다
+  const moveTo = (p) => {
+    setTripStart(p);
+    setStart(tripStart());
+    set({ source: "trip" });
+    showToast(`내 위치를 ${tripStart().label}(으)로 바꿨어요`);
+  };
+
+  // 시연 흐름 한 단계를 실행하고 주행 화면으로 — 패널은 닫아 화면이 바뀌는 걸 바로 보게 한다
+  const runDemo = (fn, msg) => {
+    fn();
+    setOpen(false);
+    navigate("/drive");
+    showToast(msg);
+  };
+  const demoStep = scenario.source === "sim" && !destination ? 1 : destination?.name === BUSAN.name ? 2 : scenario.source === "trip" && !destination ? 3 : 0;
+
+  if (!open) return null;
 
   const Toggle = ({ k, children }) => (
     <Chip type="button" $on={scenario[k]} aria-pressed={scenario[k]} onClick={() => set({ [k]: !scenario[k] })}>
@@ -201,6 +243,39 @@ export default function ScenarioPanel() {
         </button>
       </Head>
 
+      <Label>시연 흐름 · 부산 가는 길 (순서대로 누르기)</Label>
+      <Steps as="div" style={{ gridTemplateColumns: "1fr" }}>
+        {[
+          [
+            "고속도로 달리는 중 → 부채꼴로 앞 5km CCTV",
+            () =>
+              runDemo(() => {
+                setDestination(null);
+                teleport(DEMO_START);
+                set({ source: "sim", speed: "normal", tunnel: false, apiDown: false });
+              }, "경부고속도로 하행을 달리는 중이에요. 부채꼴 안 앞 5km CCTV를 보여 줘요"),
+          ],
+          [
+            "목적지 '부산' 입력 → 경로 위 CCTV만",
+            () =>
+              runDemo(() => {
+                // 시뮬레이션 위치에서 그대로 이어서, 받은 경로를 따라 달린다
+                placeTrip(simPoint());
+                set({ source: "trip" });
+                setDestination({ ...BUSAN });
+              }, "목적지를 부산으로 정했어요. 경로를 받으면 경로 위 CCTV만 보여 줘요"),
+          ],
+          [
+            "목적지 취소 → 다시 부채꼴",
+            () => runDemo(() => setDestination(null), "목적지를 지웠어요. 다시 진행 방향 앞쪽 CCTV를 보여 줘요"),
+          ],
+        ].map(([label, run], i) => (
+          <Chip key={label} type="button" $on={demoStep === i + 1} onClick={run} style={{ borderRadius: 10, textAlign: "left" }}>
+            {i + 1}. {label}
+          </Chip>
+        ))}
+      </Steps>
+
       <Label>
         로그인 흐름 {auth.user ? `· ${auth.user.email || auth.user.displayName}` : auth.isGuest ? "· 로그인 없이 사용 중" : ""}
       </Label>
@@ -213,7 +288,7 @@ export default function ScenarioPanel() {
         ))}
       </Steps>
 
-      <Label>기능흐름도 단계</Label>
+      <Label>기능흐름도 단계 (지금 화면 상태를 저절로 표시 · 누르는 버튼 아님)</Label>
       <Steps>
         {STEPS.map((s, i) => (
           <li key={s} data-on={flowStatus.step === i + 1}>
@@ -255,12 +330,47 @@ export default function ScenarioPanel() {
             set({ source: "trip" });
           }}
         >
-          경로 주행({TRIP_START.label} 출발)
+          경로 주행({start.label} 출발)
         </Chip>
         <Chip type="button" $on={scenario.source === "device"} onClick={() => set({ source: "device" })}>
           실제 GPS
         </Chip>
       </Chips>
+
+      <Label>내 위치 임시로 바꾸기 (지금: {start.label})</Label>
+      <Chips>
+        {PLACES.map((p) => (
+          <Chip
+            key={p.label}
+            type="button"
+            $on={scenario.source === "trip" && start.lat === p.lat && start.lng === p.lng}
+            onClick={() => moveTo(p)}
+          >
+            {p.label}
+          </Chip>
+        ))}
+      </Chips>
+      <Field
+        onSubmit={(e) => {
+          e.preventDefault();
+          const p = parseLatLng(coordText);
+          if (!p) {
+            showToast("위도, 경도 형식으로 넣어 주세요 (예: 37.5547, 126.9707)");
+            return;
+          }
+          moveTo(p);
+          setCoordText("");
+        }}
+      >
+        <input
+          value={coordText}
+          onChange={(e) => setCoordText(e.target.value)}
+          placeholder="위도, 경도 (카카오맵 좌표 붙여 넣기)"
+          inputMode="decimal"
+          aria-label="위도, 경도"
+        />
+        <Chip type="submit">이동</Chip>
+      </Field>
 
       {scenario.source === "sim" || scenario.source === "trip" ? (
         <>

@@ -8,6 +8,7 @@
 //         http://localhost:8787/api/its/cctvs   전국 CCTV 가벼운 목록(지도 표시용 — 이름·좌표만, gzip). around 와 같은 100분 캐시
 //         http://localhost:8787/api/its/cctv?id=  CCTV 한 대(영상 주소 포함) — 지도에서 선별 밖 CCTV 를 눌렀을 때
 //           ↑ 세 주소 모두 UTIC_API_KEY 가 있으면 경찰청 UTIC 도시 CCTV 를 섞는다(source: "utic", 하루 1회 받아 server/.utic-cctvs.json 에 저장)
+//         http://localhost:8787/api/utic/stream?id=L010325   UTIC 영상 — 재생할 때 스트림 번호를 한 대만 조회해 HLS 주소로 302(server/.utic-streams.json 에 저장)
 //         http://localhost:8787/api/links?tile=<ty>_<tx>   표준노드링크 타일(맵매칭용, ITS 호출 없음)
 //           타일은 server/nodelink/build-tiles.py 로 data/nodelink/tiles 에 만들어 둔다
 //
@@ -20,7 +21,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
 const { inKorea, inBox, cellOf, createLoaders, createAround } = require("./functions/itsCore");
-const { createUticList } = require("./functions/uticCore");
+const { createUticList, createUticStreams } = require("./functions/uticCore");
 const { searchPlaces, getRoute } = require("./functions/kakaoCore");
 
 const PORT = Number(process.env.PROXY_PORT || 8787);
@@ -28,6 +29,8 @@ const LIMIT = Number(process.env.ITS_MONTHLY_LIMIT || 900);
 const USAGE_FILE = path.join(__dirname, ".its-usage.json");
 const TILE_DIR = path.join(__dirname, "..", "data", "nodelink", "tiles");
 const UTIC_FILE = path.join(__dirname, ".utic-cctvs.json");
+const UTIC_SEED = { html: path.join(__dirname, ".utic-list.html"), xlsx: path.join(__dirname, ".utic-cctvs.xlsx") }; // 학교 망에서 받아 둔 원본
+const UTIC_STREAM_FILE = path.join(__dirname, ".utic-streams.json");
 
 if (!process.env.ITS_API_KEY) {
   console.error("server/.env 에 ITS_API_KEY 가 없어요.");
@@ -61,7 +64,8 @@ const around = createAround({
 });
 
 // UTIC 도시 CCTV — 키가 없으면 ITS 만 쓴다. 허용 IP(학교 망) 밖에서는 저장본만 쓴다(uticCore.js 참고)
-const utic = process.env.UTIC_API_KEY ? createUticList({ apiKey: () => process.env.UTIC_API_KEY, file: UTIC_FILE }) : null;
+const utic = process.env.UTIC_API_KEY ? createUticList({ apiKey: () => process.env.UTIC_API_KEY, file: UTIC_FILE, seed: UTIC_SEED }) : null;
+const uticStream = utic ? createUticStreams({ file: UTIC_STREAM_FILE }) : null;
 const noUtic = { cctvs: [], stale: false };
 
 /** ITS 결과에 UTIC CCTV 를 붙인다. UTIC 이 비어도 ITS 결과는 그대로 */
@@ -97,6 +101,16 @@ http
         "Cache-Control": "public, max-age=86400",
       });
       return fs.createReadStream(file).pipe(res);
+    }
+
+    // UTIC 영상 — 스트림 번호를 조회해 HLS 주소로 넘긴다(hls.js·네이티브 플레이어 모두 리다이렉트를 따라간다)
+    if (/\/utic\/stream\/?$/.test(url.pathname)) {
+      const id = url.searchParams.get("id") || "";
+      if (!uticStream || !/^L\d{6,}$/.test(id)) return send(404, { error: "no_stream" });
+      const hls = await uticStream(id);
+      if (!hls) return send(404, { error: "no_stream" });
+      res.writeHead(302, { Location: hls, "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" });
+      return res.end();
     }
 
     // 목적지 검색·경로 — 카카오 REST 키가 있을 때만

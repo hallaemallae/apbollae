@@ -109,7 +109,7 @@ export default function LoginPage() {
       setBusy(false);
       showToast("목업 로그인이에요. 실제 연동 전이에요.");
       navigate("/confirm", { replace: true });
-    }, 600);
+    }, 250);
   };
 
   const guest = () => {

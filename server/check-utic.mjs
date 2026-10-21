@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const { fetchUticList, normUticCctv } = require("./functions/uticCore.js");
+const { fetchUticList } = require("./functions/uticCore.js");
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FILE = path.join(here, ".utic-cctvs.json");
@@ -27,21 +27,22 @@ const km = (a, b) => {
   return 2 * R * Math.asin(Math.sqrt(h));
 };
 
-let raw;
+let got;
 try {
-  raw = await fetchUticList(KEY);
+  got = await fetchUticList(KEY);
 } catch (err) {
   console.error("[UTIC] 목록 못 받음:", hide(err.message));
   if (/04/.test(err.message)) console.error("  → 허용 IP 가 아니에요. 학교 망(유선·와이파이)에서 다시 실행하세요.");
   process.exit(1);
 }
 
-const items = raw.map(normUticCctv).filter((c) => c.name && Number.isFinite(c.lat) && Number.isFinite(c.lng));
-fs.writeFileSync(FILE, JSON.stringify({ at: Date.now(), items, raw }));
+const { rows, items, html, xlsx } = got;
+fs.writeFileSync(FILE, JSON.stringify({ at: Date.now(), items }));
+// 원본도 남겨 둔다 — 망 밖에서 저장본이 없을 때 프록시가 이걸로 다시 만든다
+fs.writeFileSync(path.join(here, ".utic-list.html"), html);
+fs.writeFileSync(path.join(here, ".utic-cctvs.xlsx"), xlsx);
 
-console.log(`[UTIC] 원본 ${raw.length}건 → 좌표 있는 CCTV ${items.length}개 (저장: server/.utic-cctvs.json)`);
-console.log("\n[필드 이름] 첫 항목:", Object.keys(raw[0] || {}).join(", "));
-console.log("[첫 항목 값]", hide(JSON.stringify(raw[0], null, 1)).slice(0, 800));
+console.log(`[UTIC] 목록 ${rows.length}건 → 좌표 있는 CCTV ${items.length}개 (저장: server/.utic-cctvs.json)`);
 
 const byCenter = {};
 for (const c of items) byCenter[c.center || "(센터 없음)"] = (byCenter[c.center || "(센터 없음)"] || 0) + 1;
@@ -51,11 +52,5 @@ const near = items.map((c) => ({ ...c, d: km(HANSUNG, c) })).filter((c) => c.d <
 console.log(`\n[한성대 5km 안] ${near.length}개`);
 for (const c of near.slice(0, 10)) console.log(`  ${c.d.toFixed(1)}km  ${c.name}  ${c.url ? "(HLS)" : ""}`);
 
-const hls = items.filter((c) => c.url);
-console.log(`\n[영상 주소] HLS(.m3u8) 로 보이는 값이 있는 CCTV ${hls.length}/${items.length}`);
-if (hls[0]) console.log("  예:", hide(hls[0].url));
-if (hls[0]?.url.includes(KEY)) console.log("  ⚠️ 영상 주소에 키가 들어 있어요 — 앱에 그대로 내려보내면 키가 노출됩니다. 프록시로 감쌀 것.");
-if (!hls.length) {
-  console.log("  → HLS 주소가 목록에 바로 없어요. 위 [첫 항목 값]에서 영상 관련 필드(KIND·CCTVIP·CH·PORT 등)를 보고");
-  console.log("    영상 주소 만드는 방법을 정해야 합니다(uticCore.js normUticCctv 의 url).");
-}
+console.log(`
+[영상] 서울(L01)만 연결 — ${items.filter((c) => c.url).length}/${items.length}. 재생할 때 프록시가 한 대씩 스트림 번호를 조회한다.`);

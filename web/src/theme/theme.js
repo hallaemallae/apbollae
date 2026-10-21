@@ -6,7 +6,8 @@
 //  - sign     : 고속도로 방향 안내 표지의 녹색. "지금 어느 도로·어느 방향인가"에만 쓴다.
 //  - lane     : 차선 황색. 선별된(내 앞) CCTV·재생 중 표시에만 쓴다.
 //  - accident / work / control : 돌발 배지(사고·공사·통제) 전용.
-//  - primary  : 버튼·체크·링크 같은 "누르는 것". 카카오내비처럼 흰 카드 위 파란 버튼으로 깔끔하게(2026-10-05).
+//  - primary  : 버튼·체크·링크 같은 "누르는 것". 로고의 빨강(#D7101C)에 맞췄다(2026-10-08, 이전엔 카카오내비 파랑).
+//               밤 화면은 남색 바탕에서 묻히지 않게 한 단계 밝게.
 //
 // 화면 톤은 카카오내비를 참고했다 — 밝은 회색 바탕 + 흰 카드 + 옅은 그림자 + 큰 라운드. 기본은 밝은 화면, 어두운 화면은 설정에서.
 
@@ -59,9 +60,9 @@ export const darkTheme = {
   // 낮 화면의 남색 카드를 이어 가고, 카드는 지도보다 한 단계 밝게 띄워 경계선 없이도 분리한다.
   colors: {
     ...signal,
-    primary: "#5B7CFF",
+    primary: "#F0303C",
     primaryText: "#FFFFFF",
-    primarySoft: "rgba(91, 124, 255, 0.16)",
+    primarySoft: "rgba(240, 48, 60, 0.16)",
     bg: "#0E1422",
     surface: "#1A2134",
     sheet: "#141A2B", // 맨 아래 목적지 바·시트
@@ -89,9 +90,9 @@ export const lightTheme = {
   colors: {
     ...signal,
     lane: "#E0A800",
-    primary: "#2B6BF3",
+    primary: "#D7101C",
     primaryText: "#FFFFFF",
-    primarySoft: "#EAF1FE",
+    primarySoft: "#FDECEE",
     bg: "#F3F4F6",
     surface: "#FFFFFF",
     raised: "#EEF0F2",

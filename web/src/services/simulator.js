@@ -1,10 +1,15 @@
 // src/services/simulator.js
-// 시뮬레이션 주행 — mock/route.js 경로를 따라 1초마다 GPS 한 점을 만든다.
+// 시뮬레이션 주행 — mock/route.js 의 실제 도로 선(ROUTE_PATH)을 따라 1초마다 GPS 한 점을 만든다.
 // 화면을 오가도 위치가 이어지도록 모듈 싱글턴으로 둔다.
-import { ROUTE } from "../mock/route";
+import { ROUTE, ROUTE_PATH, ROUTE_PATH_AT } from "../mock/route";
 import { bearingDeg, distanceKm } from "../utils/aheadFilter";
 
-const nodes = ROUTE.map(([lat, lng, label]) => ({ lat, lng, label }));
+// 도로 선의 점마다 가장 가까운 지점(IC) 이름을 붙인다 — 화면의 "지금 ○○ 부근" 표시용
+const nodes = ROUTE_PATH.map(([lat, lng], i) => {
+  let k = 0;
+  while (k + 1 < ROUTE_PATH_AT.length && i >= (ROUTE_PATH_AT[k] + ROUTE_PATH_AT[k + 1]) / 2) k += 1;
+  return { lat, lng, label: ROUTE[k][2] };
+});
 const segKm = nodes.slice(1).map((n, i) => distanceKm(nodes[i], n));
 
 export const SPEED_PRESETS = {
@@ -17,8 +22,10 @@ export const SPEED_PRESETS = {
 
 const state = { seg: 0, km: 0 };
 
+/** ROUTE 지점(IC) index 로 순간이동 */
 export function teleport(index) {
-  state.seg = Math.min(Math.max(index, 0), segKm.length - 1);
+  const at = ROUTE_PATH_AT[Math.min(Math.max(index, 0), ROUTE_PATH_AT.length - 1)];
+  state.seg = Math.min(Math.max(at, 0), segKm.length - 1);
   state.km = 0;
 }
 
@@ -66,13 +73,49 @@ export function step(dtSec, presetKey) {
 
 export const routeNodes = nodes;
 
+/** 시뮬레이션 주행의 지금 위치 — 흐름 점검의 "목적지 입력" 단계에서 이 자리부터 경로 주행으로 이어 간다 */
+export function simPoint() {
+  const p = currentPoint();
+  return { lat: p.lat, lng: p.lng, heading: p.heading };
+}
+
 /* ── 경로 주행(trip) ─────────────────────────────
- * 출발지(기본 한성대)에서 기다리다가, 목적지를 넣어 카카오 경로를 받으면 그 선을 따라 달린다.
+ * 출발지(기본 한성대, 흐름 점검 패널에서 바꿀 수 있음)에서 기다리다가, 목적지를 넣어 카카오 경로를 받으면 그 선을 따라 달린다.
  * 실제 차로 가 보기 전에 "경로 위 CCTV 가 차례로 바뀌는지"를 책상에서 확인하는 용도다.
  */
 export const TRIP_START = { lat: 37.5826, lng: 127.0105, label: "한성대학교" };
 
-const trip = { pts: null, segKm: [], seg: 0, km: 0, at: { ...TRIP_START } };
+// 흐름 점검 패널에서 "내 위치"를 임시로 바꾼 출발지. 새로 고침해도 남도록 localStorage 에 둔다.
+const START_KEY = "apb:tripStart";
+function loadStart() {
+  try {
+    const v = JSON.parse(localStorage.getItem(START_KEY));
+    if (Number.isFinite(v?.lat) && Number.isFinite(v?.lng)) return v;
+  } catch {
+    /* 저장값이 없거나 깨졌으면 기본 출발지 */
+  }
+  return TRIP_START;
+}
+let start = loadStart();
+
+/** 지금 출발지(임시 내 위치) */
+export function tripStart() {
+  return start;
+}
+
+/** 출발지를 바꾸고 그 자리로 옮긴다. null 이면 기본(한성대)으로 */
+export function setTripStart(p) {
+  start = p ? { lat: p.lat, lng: p.lng, label: p.label || `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}` } : TRIP_START;
+  try {
+    if (p) localStorage.setItem(START_KEY, JSON.stringify(start));
+    else localStorage.removeItem(START_KEY);
+  } catch {
+    /* 저장 못 해도 이번 실행에서는 쓴다 */
+  }
+  resetTrip();
+}
+
+const trip = { pts: null, segKm: [], seg: 0, km: 0, at: { ...start } };
 
 /** 경로 점 목록을 받는다. 지금 위치에서 가장 가까운 점부터 이어 달린다(재탐색해도 위치가 튀지 않게). */
 export function setTripPath(pts) {
@@ -91,9 +134,20 @@ export function setTripPath(pts) {
 /** 경로를 잊고 출발지로 돌아간다 */
 export function resetTrip() {
   trip.pts = null;
+  trip.heading = null;
   trip.seg = 0;
   trip.km = 0;
-  trip.at = { ...TRIP_START };
+  trip.at = { ...start };
+}
+
+/** 저장된 출발지는 그대로 두고 지금 위치만 p 로 옮긴다(경로는 잊는다).
+ *  p.heading 을 주면 경로를 받기 전까지 그 방향을 보고 서 있는다(주변 원으로 잠깐 바뀌지 않게) */
+export function placeTrip(p) {
+  trip.pts = null;
+  trip.seg = 0;
+  trip.km = 0;
+  trip.at = { lat: p.lat, lng: p.lng };
+  trip.heading = p.heading ?? null;
 }
 
 /** 경로의 fraction(0~1) 지점으로 건너뛴다 — ITS 호출을 아끼려고 구간만 골라 볼 때 */
@@ -130,8 +184,8 @@ export function stepTrip(dtSec, presetKey) {
     t: Date.now(),
     near: p.label || null,
   });
-  // 경로가 없으면 출발지에 서 있는다(방향 모름 → 주변 CCTV)
-  if (!trip.pts) return fix(trip.at, null, 0);
+  // 경로가 없으면 출발지에 서 있는다(방향 모름 → 주변 CCTV). 시연 흐름에서 넘어왔으면 경로를 받을 때까지 그 방향을 유지한다
+  if (!trip.pts) return trip.heading != null ? fix(trip.at, trip.heading, preset.kmh) : fix(trip.at, null, 0);
 
   let move = (preset.kmh * preset.scale * dtSec) / 3600;
   while (move > 0 && trip.seg < trip.segKm.length) {

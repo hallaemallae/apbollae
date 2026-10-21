@@ -17,7 +17,7 @@ const SOURCE_LABEL = {
   utic: "경찰청 도시교통정보센터(UTIC) 제공",
 };
 
-const CONNECT_MS = 900;
+const CONNECT_MS = 500;
 const FAIL_MS = 1800;
 const LIVE_TIMEOUT_MS = 12000; // 이 안에 첫 화면이 안 나오면 송출 중단으로 본다(E5)
 
@@ -87,8 +87,8 @@ const Frame = styled.div`
   position: relative;
   width: 100%;
   /* 전체 화면에서는 부모(화면)를 채우고 영상은 잘리지 않게 contain */
-  /* 일반 화면은 4:3 — ITS CCTV 원본 대부분이 4:3(640×480)이라 위아래로 더 크게, 덜 잘린다 */
-  ${({ $full }) => ($full ? "height: 100%;" : "aspect-ratio: 4 / 3;")}
+  /* 일반 화면은 8:7 — 영상 아래 조작 줄(거리·전환 화살표)을 영상 위로 올리고, 4:3 보다 아래로 조금 늘렸다(1:1 은 너무 컸다) */
+  ${({ $full }) => ($full ? "height: 100%;" : "aspect-ratio: 8 / 7;")}
   background: #0E1012;
   overflow: hidden;
 `;

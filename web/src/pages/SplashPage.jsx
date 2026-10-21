@@ -46,7 +46,7 @@ export default function SplashPage() {
   // 로그인 복원이 끝나면 이동 — 로그인 화면으로 갈지는 /confirm 의 RequireEntry 가 정한다
   useEffect(() => {
     if (loading) return undefined;
-    const t = setTimeout(() => navigate("/confirm", { replace: true }), 1300);
+    const t = setTimeout(() => navigate("/confirm", { replace: true }), 500); // 화면 전환은 1초 안에
     return () => clearTimeout(t);
   }, [loading, navigate]);
 

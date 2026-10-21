@@ -26,8 +26,9 @@ import { useDrivePublish } from "../context/DriveDataContext";
 import { useScenario } from "../context/ScenarioContext";
 import { ROUTE_ROAD } from "../mock/route";
 import { routeNodes, setTripPath } from "../services/simulator";
+import { applyReviewTripJump } from "../dev/reviewMock";
 import { distanceKm, AHEAD, formatDistance, angleDiff, bearingDeg, travelDirection } from "../utils/aheadFilter";
-import { TRAFFIC_LABEL } from "../utils/routeFilter";
+import { locate, ROUTE_OPTS, TRAFFIC_LABEL } from "../utils/routeFilter";
 import { showToast } from "../utils/toast";
 import { fetchCctv, fetchNationCctvs } from "../services/itsApi";
 
@@ -189,11 +190,8 @@ const SummaryBar = styled.div`
   gap: 6px;
   margin: 2px 0 0;
   padding: 4px;
-  border-radius: 16px;
-  background: ${({ theme }) => theme.colors.guide.bg};
-  border: 1px solid ${({ theme }) => theme.colors.guide.border};
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
-  text-shadow: none;
+  /* 박스 없이 글자만 — 위 Guide 의 어두운 글자 그림자를 그대로 물려받아 지도 위에서 읽힌다 */
+  background: transparent;
   > button {
     border: none;
     font-family: inherit;
@@ -233,7 +231,7 @@ const SummaryBar = styled.div`
     font-size: 12px;
     font-weight: 500;
     line-height: 1.35;
-    color: ${({ theme }) => theme.colors.guide.sub};
+    color: rgba(255, 255, 255, 0.88);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -257,53 +255,16 @@ const SummaryBar = styled.div`
   }
 `;
 
-// 영상 아래 조작 줄 — ‹  1.6km 앞 · 약 1분 후 통과 (점: 몇 번째 CCTV)  ›
-const Controls = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 4px 6px;
-  > button {
-    flex: none;
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
-    border: none;
-    background: transparent;
-    color: ${({ theme }) => theme.colors.guide.text};
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  > button:disabled {
-    opacity: 0.3;
-  }
-  > div {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-  }
-  p {
-    margin: 0;
-    max-width: 100%;
-    font-size: 14px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-variant-numeric: tabular-nums;
-  }
-  p b {
-    color: ${({ theme }) => theme.colors.distance};
-  }
-`;
-
+// 몇 번째 CCTV 인지 — 영상 아래쪽 가운데(시각·출처 줄 바로 위)
 const Dots = styled.span`
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  z-index: 3;
+  transform: translateX(-50%);
   display: flex;
   gap: 4px;
+  pointer-events: none;
   i {
     height: 6px;
     width: 6px;
@@ -314,7 +275,7 @@ const Dots = styled.span`
   }
   i[data-on="true"] {
     width: 16px;
-    background: ${({ theme }) => theme.colors.guide.text};
+    background: #fff;
   }
 `;
 
@@ -437,15 +398,25 @@ const BottomBar = styled.div`
 `;
 
 // 목적지 검색창 — 카카오내비 첫 화면 검색창처럼: 돋보기 + "어디로 가세요?". 누르면 장소 검색 시트.
-// 목적지가 있으면 같은 자리에 목적지 이름·남은 거리, 오른쪽 X 로 취소. 할래말래 지도 위 카드의 선·그림자를 쓴다.
+// 목적지가 있으면 같은 자리에 목적지 이름·남은 거리, 오른쪽 X 로 취소 — 이때는 카드 면 없이 글자만 띄운다.
 const SearchBar = styled.div`
   display: flex;
   align-items: center;
   min-height: 54px;
   border-radius: 14px;
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? theme.colors.border : "#E8EAEF")};
-  box-shadow: ${({ theme }) => (theme.mode === "dark" ? "0 6px 16px rgba(0, 0, 0, 0.4)" : "0 6px 16px rgba(15, 23, 42, 0.12)")};
+  /* 검색 전에는 입력창 카드, 목적지를 고르면 카드 면 없이 글자만 — 속도 숫자처럼 반대색 테두리(halo)로 지도 위에서 읽히게 */
+  ${({ theme, $set }) =>
+    $set
+      ? `
+    --halo: ${theme.mode === "dark" ? "rgba(0, 0, 0, 0.85)" : "rgba(255, 255, 255, 0.95)"};
+    text-shadow: 0 0 2px var(--halo), 0 0 6px var(--halo), 0 0 10px var(--halo);
+    svg { filter: drop-shadow(0 0 2px var(--halo)) drop-shadow(0 0 4px var(--halo)); }
+  `
+      : `
+    background: ${theme.colors.surface};
+    border: 1px solid ${theme.mode === "dark" ? theme.colors.border : "#E8EAEF"};
+    box-shadow: ${theme.mode === "dark" ? "0 6px 16px rgba(0, 0, 0, 0.4)" : "0 6px 16px rgba(15, 23, 42, 0.12)"};
+  `}
   > button:first-child {
     flex: 1;
     min-width: 0;
@@ -481,8 +452,8 @@ const SearchBar = styled.div`
     display: block;
     margin-top: 1px;
     font-size: 12px;
-    font-weight: 500;
-    color: ${({ theme }) => theme.colors.textWeak};
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.textNormal};
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -498,7 +469,7 @@ const SearchBar = styled.div`
     display: flex;
     align-items: center;
     justify-content: center;
-    color: ${({ theme }) => theme.colors.textWeak};
+    color: ${({ theme }) => theme.colors.textStrong};
   }
 `;
 
@@ -579,7 +550,10 @@ export default function DrivePage({ visible = true }) {
   const [driverView, setDriverView] = useState(false); // ③ 운전자에게 보여 주기
   // 경로 주행 시뮬레이션 — 경로를 받으면 그 선을 따라 달린다
   useEffect(() => {
-    if (scenario.source === "trip" && nav.route) setTripPath(nav.route.pts);
+    if (scenario.source === "trip" && nav.route) {
+      setTripPath(nav.route.pts);
+      applyReviewTripJump();
+    }
   }, [scenario.source, nav.route]);
   const routeMode = ahead.mode === "route";
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -619,6 +593,27 @@ export default function DrivePage({ visible = true }) {
       clearInterval(t);
     };
   }, [scenario.data]);
+
+  // 목적지가 있으면 지도에도 경로 위 CCTV 만 — 전국 목록에서 경로 선 가까이 있는 것을 경로 거리(s)와 함께 한 번 구해 둔다
+  const routeNation = useMemo(() => {
+    if (!nav.route || !nation) return null;
+    const pad = ROUTE_OPTS.onRouteKm / 100; // 위경도 여유(넉넉히)
+    let n = -90, s = 90, e = -180, w = 180;
+    nav.route.pts.forEach((p) => {
+      n = Math.max(n, p.lat); s = Math.min(s, p.lat); e = Math.max(e, p.lng); w = Math.min(w, p.lng);
+    });
+    return nation
+      .filter((c) => c.lat < n + pad && c.lat > s - pad && c.lng < e + pad && c.lng > w - pad)
+      .map((c) => ({ c, at: locate(nav.route, c) }))
+      .filter(({ at }) => at.offKm <= ROUTE_OPTS.onRouteKm)
+      .map(({ c, at }) => ({ ...c, s: at.s }));
+  }, [nav.route, nation]);
+  // 지나온 것은 빼고, 경로 밖·반대 방향 CCTV 도 지도에서 뺀다
+  const mapNation = routeNation ? routeNation.filter((c) => c.s > nav.s0) : routeMode ? null : nation;
+  const mapAll = useMemo(
+    () => (routeMode ? ahead.all.filter((c) => c.status === "ahead" || c.status === "far") : ahead.all),
+    [routeMode, ahead.all]
+  );
   const [extra, setExtra] = useState(null); // 지도에서 고른, 주변 목록 밖 CCTV(영상 주소 포함)
   const [activeId, setActiveId] = useState(null);
   const [failedIds, setFailedIds] = useState(() => new Set());
@@ -949,14 +944,14 @@ export default function DrivePage({ visible = true }) {
             position={loc.fix}
             heading={loc.heading}
             route={scenario.source === "sim" ? routeNodes : []}
-            all={ahead.all}
+            all={mapAll}
             selected={ahead.selected}
             events={ahead.events}
             activeId={activeId}
             onSelect={select}
             recenterKey={ahead.refreshedAt}
             routeRoads={nav.route?.roads || (ahead.mode === "road" ? matched.path?.roads : null)}
-            nation={nation}
+            nation={mapNation}
             theme={theme}
           />
         )}
@@ -964,7 +959,6 @@ export default function DrivePage({ visible = true }) {
 
       <Guide ref={guideRef} $clear={!!active}>
 
-        {nearby && !noHeading ? <GuideNote role="status">아직 진행 방향을 몰라 주변 CCTV를 가까운 순으로 보여 드려요. 차가 움직이면 앞쪽 CCTV만 골라요.</GuideNote> : null}
         {ahead.stale ? <GuideNote role="status">교통정보를 새로 받지 못해 {staleSec}초 전 목록을 보여 드려요.</GuideNote> : null}
 
         {active ? (
@@ -985,8 +979,8 @@ export default function DrivePage({ visible = true }) {
               blocked={activeEvents.some((e) => e.type === "accident")}
               onError={handleError}
             />
-            {/* 전체 화면: 통과 시각·전환 버튼을 영상 위에 띄운다(일반 화면은 영상 아래 조작 줄) */}
-            {full && eta ? (
+            {/* 통과 시각·전환 버튼은 영상 위에 띄운다(일반 화면·전체 화면 같음) */}
+            {eta ? (
               <Eta $full aria-live="polite">
                 {eta.dist} {eta.label}
                 {eta.when ? (
@@ -998,7 +992,7 @@ export default function DrivePage({ visible = true }) {
                 {activeIdx >= 0 ? <small>{activeIdx + 1}/{playable.length}</small> : null}
               </Eta>
             ) : null}
-            {full && canStep ? (
+            {canStep ? (
               <>
                 <OverlayBtn type="button" aria-label="이전 CCTV" style={{ left: 8, top: "50%", marginTop: -22 }} onClick={() => step(-1)}>
                   <FiChevronLeft size={24} />
@@ -1007,6 +1001,14 @@ export default function DrivePage({ visible = true }) {
                   <FiChevronRight size={24} />
                 </OverlayBtn>
               </>
+            ) : null}
+            {/* 몇 번째 CCTV 인지 — 영상 아래쪽 가운데 점 */}
+            {!full && playable.length > 1 ? (
+              <Dots aria-label={activeIdx >= 0 ? `${playable.length}곳 중 ${activeIdx + 1}번째` : undefined}>
+                {playable.map((c) => (
+                  <i key={c.id} data-on={c.id === activeId} />
+                ))}
+              </Dots>
             ) : null}
             {/* 공유 · 전체 화면(닫기) — 일반 화면은 영상 오른쪽 아래, 전체 화면은 오른쪽 위 */}
             <OverlayBtn
@@ -1033,29 +1035,6 @@ export default function DrivePage({ visible = true }) {
               </BackToAuto>
             ) : null}
           </Video>
-          {!full ? (
-            <Controls>
-              <button type="button" aria-label="이전 CCTV" disabled={!canStep} style={canStep ? undefined : { visibility: "hidden" }} onClick={() => step(-1)}>
-                <FiChevronLeft size={20} />
-              </button>
-              <div>
-                <p aria-live="polite">
-                  <b>{eta?.dist}</b> {eta?.label}
-                  {eta?.when ? ` · ${eta.when}` : ""}
-                </p>
-                {playable.length > 1 ? (
-                  <Dots aria-label={activeIdx >= 0 ? `${playable.length}곳 중 ${activeIdx + 1}번째` : undefined}>
-                    {playable.map((c) => (
-                      <i key={c.id} data-on={c.id === activeId} />
-                    ))}
-                  </Dots>
-                ) : null}
-              </div>
-              <button type="button" aria-label="다음 CCTV" disabled={!canStep} style={canStep ? undefined : { visibility: "hidden" }} onClick={() => step(1)}>
-                <FiChevronRight size={20} />
-              </button>
-            </Controls>
-          ) : null}
           {!full && summary.tone !== "unknown" ? (
             <SummaryBar $tone={SUMMARY_TONE[summary.tone](theme)}>
               <button type="button" onClick={() => setDriverView(true)} aria-label={`${summary.title}. ${summary.sub}. 누르면 운전자에게 크게 보여 줘요`}>
