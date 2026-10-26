@@ -8,17 +8,22 @@ dist/
 .secret.local
 
 # Functions 비밀 아닌 설정은 커밋한다
-!server/functions/.env.apbollae
+!sorc/server/functions/.env.apbollae
 
 # 로컬 프록시 ITS 사용량 기록
-server/.its-usage.json
+sorc/server/.its-usage.json
 
 # UTIC CCTV 목록 저장본(학교 망에서 받음, 원본에 접속 정보가 들어 있을 수 있다)
-server/.utic-*
+sorc/server/.utic-*
 
 # 표준노드링크 원본(수백 MB) — 각자 ITS 에서 받는다
-data/nodelink/
+sorc/data/nodelink/
 
 # 카카오 키는 팀 공유용으로 올린다(비공개 저장소). ITS 키(server/.env)는 계속 제외
-!web/.env.development
-!server/.env.kakao
+!sorc/web/.env.development
+!sorc/server/.env.kakao
+
+# 산출물 옛 버전은 로컬에만 둔다(docs 에는 최신본만 올림)
+docs/이전버전/
+.vscode/
+etc/녹음*.mp4
