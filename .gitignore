@@ -19,11 +19,11 @@ sorc/server/.utic-*
 # 표준노드링크 원본(수백 MB) — 각자 ITS 에서 받는다
 sorc/data/nodelink/
 
-# 카카오 키는 팀 공유용으로 올린다(비공개 저장소). ITS 키(server/.env)는 계속 제외
+# 카카오 JS 키(도메인 제한 공개용)만 올린다. REST 키·ITS 키는 sorc/server/.env (커밋 안 함)
 !sorc/web/.env.development
-!sorc/server/.env.kakao
 
 # 산출물 옛 버전은 로컬에만 둔다(docs 에는 최신본만 올림)
 docs/이전버전/
 .vscode/
 etc/녹음*.mp4
+~$*

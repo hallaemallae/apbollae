@@ -1,7 +1,7 @@
 // 앞볼래 로컬 개발 프록시 — 내 PC(국내 IP)에서 ITS 를 부른다.
 // ITS 가 Google Cloud IP 를 막아 Cloud Functions 로는 못 부르기 때문에, 개발·흐름 확인은 이걸로 한다.
 //
-//   실행: cd web && npm run proxy   (= node --env-file=../server/.env.kakao --env-file-if-exists=../server/.env ../server/dev-proxy.cjs)
+//   실행: cd web && npm run proxy   (= node --env-file-if-exists=../server/.env ../server/dev-proxy.cjs)
 //   주소: http://localhost:8787/api/its/around?lat=&lng=   (웹앱 개발 서버가 /api 를 여기로 넘긴다)
 //         http://localhost:8787/api/place?query=&lat=&lng=   카카오 장소 검색(목적지)
 //         http://localhost:8787/api/route?olat=&olng=&dlat=&dlng=&heading=&opt=   카카오모빌리티 자동차 길찾기(opt: recommend|time|free)
@@ -12,7 +12,7 @@
 //         http://localhost:8787/api/links?tile=<ty>_<tx>   표준노드링크 타일(맵매칭용, ITS 호출 없음)
 //           타일은 server/nodelink/build-tiles.py 로 data/nodelink/tiles 에 만들어 둔다
 //
-// - ITS_API_KEY(필수)는 server/.env 에서만 읽는다(커밋 안 됨). KAKAO_REST_KEY 는 팀 공유 server/.env.kakao(커밋됨), server/.env 에 있으면 그쪽이 우선
+// - ITS_API_KEY(필수)는 server/.env 에서만 읽는다(커밋 안 됨). KAKAO_REST_KEY 도 server/.env 에 둔다
 // - 캐시는 메모리(CCTV 전국 100분·돌발 칸별 60초). 재시작하면 비워진다.
 // - 월 호출 수는 server/.its-usage.json 에 센다(커밋 안 됨). 한도(기본 900)에 닿으면 캐시만 돌려준다.
 //   ※ 다른 사람·다른 PC 의 호출은 여기 안 잡힌다 — ITS 마이페이지 사용량도 가끔 확인할 것.

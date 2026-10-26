@@ -9,7 +9,7 @@
     "prebuild": "node scripts/build-oss-licenses.mjs",
     "build-oss-licenses": "node scripts/build-oss-licenses.mjs",
     "preview": "vite preview --host",
-    "proxy": "node --env-file=../server/.env.kakao --env-file-if-exists=../server/.env ../server/dev-proxy.cjs"
+    "proxy": "node --env-file-if-exists=../server/.env ../server/dev-proxy.cjs"
   },
   "dependencies": {
     "@turf/bearing": "^7.2.0",
